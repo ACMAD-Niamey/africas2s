@@ -20,7 +20,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-import deepscale as ds
+import africas2s as ds
 
 OBS_REGION = [-12, 15, 22, 52]       # cached CHIRPS box (S, N, W, E)
 GCM_REGION = [-20, 20, 10, 75]       # cached C3S predictor box (subset below)

@@ -2,7 +2,7 @@
 import numpy as np
 import pytest
 
-from deepscale.aggregations import cessation, dry_spell, onset, season_length
+from africas2s.aggregations import cessation, dry_spell, onset, season_length
 
 pytestmark = pytest.mark.integration
 

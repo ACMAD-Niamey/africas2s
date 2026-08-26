@@ -1,5 +1,5 @@
 """Integration test for smoothed_regression round 2 (issue #5): real-time
-out-of-sample application through the public ``deepscale.calibrate`` API.
+out-of-sample application through the public ``africas2s.calibrate`` API.
 
 Mirrors the production scenario the issue describes — an OND 2026 forecast
 against a 1993-2020 hindcast, where the target year is NOT in the hindcast —
@@ -15,7 +15,7 @@ end-to-end over synthetic data:
 import numpy as np
 import xarray as xr
 
-import deepscale
+import africas2s
 
 SEASONS = ["ASO", "SON", "OND", "NDJ"]
 YEARS = np.arange(1993, 2021)          # 1993..2020 hindcast; 2026 is out-of-sample
@@ -55,7 +55,7 @@ def test_realtime_out_of_sample_end_to_end():
 
     # -- deterministic: the calibrated 2026 anomaly must track the planted
     # -- future obs response (0.7 * future signal)
-    det = deepscale.calibrate(models, ob, method="smoothed_regression",
+    det = africas2s.calibrate(models, ob, method="smoothed_regression",
                               output_type="deterministic", temporal_sigma=None)
     assert det.dims == ("season", "lat", "lon")
     assert bool(np.isfinite(det).all())
@@ -66,7 +66,7 @@ def test_realtime_out_of_sample_end_to_end():
 
     # -- tercile: valid probabilities, and above-normal beats below-normal
     # -- exactly where the planted future signal is strongly positive
-    probs = deepscale.calibrate(models, ob, method="smoothed_regression",
+    probs = africas2s.calibrate(models, ob, method="smoothed_regression",
                                 output_type="tercile", temporal_sigma=1.0,
                                 distribution="normal")
     assert probs.dims == ("season", "tercile", "lat", "lon")
@@ -87,7 +87,7 @@ def test_realtime_out_of_sample_end_to_end():
         pooled_h.append(h.assign_coords(member=ids))
         pooled_f.append(f.assign_coords(member=ids))
         offset += n
-    manual = deepscale.calibrate(xr.concat(pooled_h, dim="member"), ob,
+    manual = africas2s.calibrate(xr.concat(pooled_h, dim="member"), ob,
                                  method="smoothed_regression",
                                  output_type="deterministic", temporal_sigma=None,
                                  forecast=xr.concat(pooled_f, dim="member"))

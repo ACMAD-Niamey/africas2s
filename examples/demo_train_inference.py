@@ -22,9 +22,9 @@ from pathlib import Path
 
 import numpy as np
 import xarray as xr
-import deepscale as ds
-from deepscale.methods.base import MethodBase
-from deepscale.registry import register_method
+import africas2s as ds
+from africas2s.methods.base import MethodBase
+from africas2s.registry import register_method
 
 
 @register_method("demo_dl_stub")

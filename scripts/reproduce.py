@@ -1,6 +1,6 @@
 """Reproduce PyCPT/CPT CCA seasonal forecast, step by step.
 
-This script produces numbers identical to PyCPT's output using Rosetta + DeepScale.
+This script produces numbers identical to PyCPT's output using Rosetta + AfricaS2S.
 Every quirk of CPT's process is reproduced here, documented with the Fortran source
 line or PyCPT Python line where we discovered it.
 
@@ -31,10 +31,10 @@ Validated against PyCPT SEAS51c East Africa MAM output:
   RPSS:                  7.72% vs 7.77% (diff 0.05%, per-gridpoint r = 0.9998)
 
 Usage:
-  cd deepscale && uv run python scripts/reproduce.py
-  cd deepscale && uv run python scripts/reproduce.py --sweep
-  cd deepscale && uv run python scripts/reproduce.py --auto-modes
-  cd deepscale && uv run python scripts/reproduce.py --validate-data
+  cd africas2s && uv run python scripts/reproduce.py
+  cd africas2s && uv run python scripts/reproduce.py --sweep
+  cd africas2s && uv run python scripts/reproduce.py --auto-modes
+  cd africas2s && uv run python scripts/reproduce.py --validate-data
 
 Config overrides:
   --predictor-region S N W E    --predictand-region S N W E
@@ -49,11 +49,11 @@ from scipy.stats import t as t_dist, kendalltau
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "rosetta" / "src"))
-sys.path.insert(0, str(REPO / "deepscale" / "src"))
+sys.path.insert(0, str(REPO / "africas2s" / "src"))
 
 import rosetta
-from deepscale.methods.cca import _svd_pca
-from deepscale.metrics.rpss import RPSSMetric, _cpt_boundaries, _q_empirical
+from africas2s.methods.cca import _svd_pca
+from africas2s.metrics.rpss import RPSSMetric, _cpt_boundaries, _q_empirical
 
 SEASON_MONTHS = {
     "DJF": [12, 1, 2], "JFM": [1, 2, 3], "FMA": [2, 3, 4], "MAM": [3, 4, 5],

@@ -29,7 +29,7 @@ class TestCorrDiffGPU:
 
     @pytest.fixture(scope="class")
     def method(self):
-        from deepscale.methods.corrdiff import CorrDiffMethod
+        from africas2s.methods.corrdiff import CorrDiffMethod
         m = CorrDiffMethod(device="cuda", n_samples=2, target_variable="t2m")
         obs = xr.DataArray(
             np.random.randn(5, 20, 20) + 290.0,
@@ -62,7 +62,7 @@ class TestCorrDiffGPU:
 
     def test_prepare_and_predict(self, method):
         import pandas as pd
-        from deepscale.methods.corrdiff import prepare_corrdiff_input, _to_numpy
+        from africas2s.methods.corrdiff import prepare_corrdiff_input, _to_numpy
 
         model = method.model
         times = pd.date_range("2005-03-14", "2005-03-16", freq="D")

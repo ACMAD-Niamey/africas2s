@@ -108,7 +108,7 @@ import xarray as xr
 
 def _make_fake_result():
     """Build a minimal stand-in for SeasonalMMEResult without invoking the
-    full deepscale pipeline. We only exercise the fields output_writer reads.
+    full africas2s pipeline. We only exercise the fields output_writer reads.
     """
     from types import SimpleNamespace
 

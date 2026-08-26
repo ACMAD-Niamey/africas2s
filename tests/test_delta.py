@@ -24,13 +24,13 @@ def _same_grid_data(seed=3, n_years=20, n_members=3, gcm_loc=12.0, obs_loc=5.0):
 
 
 def test_delta_registry_lookup():
-    from deepscale.registry import get_method
-    from deepscale.methods.delta import DeltaScalingMethod
+    from africas2s.registry import get_method
+    from africas2s.methods.delta import DeltaScalingMethod
     assert get_method("delta") is DeltaScalingMethod
 
 
 def test_delta_fit_stores_climatologies(synthetic_gcm_hindcast, synthetic_obs):
-    from deepscale.methods.delta import DeltaScalingMethod
+    from africas2s.methods.delta import DeltaScalingMethod
     m = DeltaScalingMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     assert hasattr(m, "gcm_hist_clim_")
@@ -41,7 +41,7 @@ def test_delta_fit_stores_climatologies(synthetic_gcm_hindcast, synthetic_obs):
 
 def test_delta_predict_shape_on_obs_grid(synthetic_gcm_hindcast,
                                          synthetic_gcm_forecast, synthetic_obs):
-    from deepscale.methods.delta import DeltaScalingMethod
+    from africas2s.methods.delta import DeltaScalingMethod
     m = DeltaScalingMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     result = m.predict(synthetic_gcm_forecast)
@@ -53,7 +53,7 @@ def test_delta_predict_shape_on_obs_grid(synthetic_gcm_hindcast,
 
 def test_delta_zero_anomaly_returns_obs_clim():
     """Forecast == GCM historical climatology -> zero anomaly -> obs climatology."""
-    from deepscale.methods.delta import DeltaScalingMethod
+    from africas2s.methods.delta import DeltaScalingMethod
     gcm, obs = _same_grid_data()
     m = DeltaScalingMethod()
     m.fit(gcm, obs)
@@ -65,7 +65,7 @@ def test_delta_zero_anomaly_returns_obs_clim():
 
 def test_delta_applies_anomaly_exactly_on_same_grid():
     """On a shared grid (identity interp): result == obs_clim + (forecast - gcm_hist_clim)."""
-    from deepscale.methods.delta import DeltaScalingMethod
+    from africas2s.methods.delta import DeltaScalingMethod
     gcm, obs = _same_grid_data()
     m = DeltaScalingMethod()
     m.fit(gcm, obs)
@@ -77,11 +77,11 @@ def test_delta_applies_anomaly_exactly_on_same_grid():
 
 
 def test_delta_downscale_integration():
-    import deepscale
+    import africas2s
     gcm, obs = _same_grid_data()
-    cont = deepscale.downscale(gcm, obs, method="delta", verbose=False)
+    cont = africas2s.downscale(gcm, obs, method="delta", verbose=False)
     assert cont.dims == ("member", "lat", "lon")
-    terc = deepscale.downscale(gcm, obs, method="delta", output_type="tercile",
+    terc = africas2s.downscale(gcm, obs, method="delta", output_type="tercile",
                                verbose=False)
     assert "tercile" in terc.dims
     np.testing.assert_allclose(terc.sum("tercile").values, 1.0, atol=1e-9)

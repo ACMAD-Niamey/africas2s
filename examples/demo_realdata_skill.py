@@ -23,10 +23,10 @@ from pathlib import Path
 
 import numpy as np
 import xarray as xr
-import deepscale as ds
-from deepscale.cv import loyo
-from deepscale.skill import skill
-from deepscale.tercile import to_tercile_cv
+import africas2s as ds
+from africas2s.cv import loyo
+from africas2s.skill import skill
+from africas2s.tercile import to_tercile_cv
 
 OBS_REGION = [-12, 15, 22, 52]
 GCM_REGION = [-20, 20, 10, 75]
@@ -63,7 +63,7 @@ def load_gcm():
 
 
 # loyo() yields (train_years, test_year) folds; each fold is downscaled with the
-# public deepscale.downscale() verb (fit on the train years, predict the held-out
+# public africas2s.downscale() verb (fit on the train years, predict the held-out
 # year) and the held-out predictions are scored together.
 METHODS = [
     ("Climatology", "climatology", {}),

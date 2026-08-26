@@ -1,6 +1,6 @@
 """End-to-end seasonal forecast reference: East Africa MAM.
 
-A DeepScale + Rosetta port of ``pycpt-reference/pycpt_seasonal_forecast.py``,
+A AfricaS2S + Rosetta port of ``pycpt-reference/pycpt_seasonal_forecast.py``,
 structured in the same 7 phases and runnable phase-by-phase.
 
   # full real run (needs CDS creds + network):
@@ -28,8 +28,8 @@ from pathlib import Path
 
 import numpy as np
 import xarray as xr
-import deepscale as ds
-from deepscale.plotting import (
+import africas2s as ds
+from africas2s.plotting import (
     plot_domains, plot_skill_maps, plot_eof_modes, plot_cca_modes,
     plot_tercile_forecast, plot_deterministic_forecast,
     plot_exceedance_probability, plot_flex_pdf,
@@ -62,7 +62,7 @@ SST_MODELS = [
 ]
 EXCLUDED_MODELS = []  # SPEAR/CanSIPS restored via CCSR adapter
 
-# crossvalidation_window=5 matches PyCPT's default (deepscale's own default is 1).
+# crossvalidation_window=5 matches PyCPT's default (africas2s's own default is 1).
 CPT_ARGS = {"crossvalidation_window": 5}
 
 
@@ -76,7 +76,7 @@ def _banner(header, lines):
 # Phase 0: config banner, catalog verification, domain map.
 # ----------------------------------------------------------------------------
 def phase0(ctx):
-    _banner("Seasonal forecast reference: East Africa MAM (DeepScale + Rosetta)", [
+    _banner("Seasonal forecast reference: East Africa MAM (AfricaS2S + Rosetta)", [
         f"region={REGION}  init={INIT}  target={TARGET}  hindcast={HINDCAST}",
         f"predictand={PREDICTAND}",
         f"PRCP track: {[m[0] for m in PRCP_MODELS]}",

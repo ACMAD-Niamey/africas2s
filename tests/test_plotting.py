@@ -9,15 +9,15 @@ import xarray as xr
 
 def test_plotting_package_imports():
     """Package must import cleanly even when matplotlib/cartopy aren't installed."""
-    import deepscale.plotting  # noqa: F401
+    import africas2s.plotting  # noqa: F401
 
 
 def test_plot_skill_maps_smoke():
     pytest.importorskip("matplotlib")
     pytest.importorskip("cartopy")
     import matplotlib.pyplot as plt
-    from deepscale.skill import SkillReport
-    from deepscale.plotting.skill import plot_skill_maps
+    from africas2s.skill import SkillReport
+    from africas2s.plotting.skill import plot_skill_maps
 
     lat = np.linspace(-5, 5, 6)
     lon = np.linspace(30, 45, 8)
@@ -43,7 +43,7 @@ def test_plot_domains_smoke():
     pytest.importorskip("matplotlib")
     pytest.importorskip("cartopy")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.domains import plot_domains
+    from africas2s.plotting.domains import plot_domains
 
     # predictand: East Africa, predictor: tropical Pacific (antimeridian-spanning)
     fig = plot_domains(
@@ -58,7 +58,7 @@ def test_plot_domains_smoke():
 def test_plot_tercile_forecast_smoke():
     pytest.importorskip("matplotlib")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.forecasts import plot_tercile_forecast
+    from africas2s.plotting.forecasts import plot_tercile_forecast
 
     n_lat, n_lon = 4, 5
     probs = np.zeros((3, n_lat, n_lon))
@@ -83,7 +83,7 @@ def test_tercile_rgb_leaves_masked_cells_blank():
     """NaN-masked cells (significance mask / uncalibratable) must render blank
     (white), not be painted into a confident below/above category, and must not
     leak NaN into the RGB image."""
-    from deepscale.plotting.forecasts import _tercile_rgb
+    from africas2s.plotting.forecasts import _tercile_rgb
 
     probs = np.full((3, 1, 2), np.nan)
     probs[:, 0, 0] = [0.7, 0.2, 0.1]          # confident below-normal (cat 0)
@@ -101,7 +101,7 @@ def test_plot_tercile_forecast_accepts_latitude_longitude_dims():
     latitude, longitude) forecast must plot without a transpose/attr error."""
     pytest.importorskip("matplotlib")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.forecasts import plot_tercile_forecast
+    from africas2s.plotting.forecasts import plot_tercile_forecast
 
     n_lat, n_lon = 4, 5
     probs = np.full((3, n_lat, n_lon), 1.0 / 3.0)
@@ -127,7 +127,7 @@ def test_to_0_360_shifts_western_hemisphere_geometry():
     import geopandas as gpd
     from shapely.geometry import LineString
 
-    from deepscale.plotting.forecasts import _to_0_360
+    from africas2s.plotting.forecasts import _to_0_360
 
     west = LineString([(-100.0, 0.0), (-90.0, 10.0)])   # western hemisphere
     east = LineString([(30.0, 0.0), (40.0, 10.0)])       # eastern hemisphere
@@ -140,7 +140,7 @@ def test_to_0_360_shifts_western_hemisphere_geometry():
 
 
 def test_tercile_codes_maps_dominant_category_and_bin():
-    from deepscale.plotting.forecasts import _tercile_codes
+    from africas2s.plotting.forecasts import _tercile_codes
     prob_bins = [33.3, 40, 50, 60, 70, 100.01]   # n = 5 bins
     # one above-dominant cell at 65% (bin index 3), one below-dominant at 45% (bin 1)
     probs = np.array([
@@ -156,7 +156,7 @@ def test_tercile_codes_maps_dominant_category_and_bin():
 
 
 def test_tercile_codes_marks_all_nan_cell_invalid():
-    from deepscale.plotting.forecasts import _tercile_codes
+    from africas2s.plotting.forecasts import _tercile_codes
     probs = np.full((3, 1, 1), np.nan)
     code, valid = _tercile_codes(probs, [33.3, 40, 50, 60, 70, 100.01])
     assert not valid[0, 0]
@@ -164,7 +164,7 @@ def test_tercile_codes_marks_all_nan_cell_invalid():
 
 
 def _ghacof_style():
-    from deepscale.plotting import TercileStyle
+    from africas2s.plotting import TercileStyle
     return TercileStyle(
         below_colors=["#fcf3c8", "#fae678", "#f8d808", "#e6b400", "#d49e00"],
         normal_colors=["#eefcff", "#e7f8f8", "#d6efef", "#c7e8e8", "#c7e8e8"],
@@ -176,7 +176,7 @@ def _ghacof_style():
 def test_plot_terciles_styled_smoke():
     pytest.importorskip("matplotlib")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.forecasts import plot_tercile_forecast
+    from africas2s.plotting.forecasts import plot_tercile_forecast
     lat = np.linspace(-5, 5, 6); lon = np.linspace(30, 45, 8)
     probs = np.zeros((3, 6, 8)); probs[2] = 0.6; probs[1] = 0.25; probs[0] = 0.15
     pr = xr.DataArray(probs, dims=["tercile", "lat", "lon"],
@@ -191,7 +191,7 @@ def test_plot_field_smoke_returns_mappable():
     pytest.importorskip("cartopy")
     import matplotlib.pyplot as plt
     import cartopy.crs as ccrs
-    from deepscale.plotting.forecasts import plot_field
+    from africas2s.plotting.forecasts import plot_field
     lat = np.linspace(-5, 5, 6); lon = np.linspace(30, 45, 8)
     field = xr.DataArray(np.linspace(-40, 40, 48).reshape(6, 8),
                          dims=["lat", "lon"], coords={"lat": lat, "lon": lon})
@@ -206,8 +206,8 @@ def test_plot_field_honors_nodata_color():
     pytest.importorskip("matplotlib")
     import matplotlib.pyplot as plt
     from matplotlib.colors import to_rgba
-    from deepscale.plotting.forecasts import plot_field
-    from deepscale.plotting import TercileStyle
+    from africas2s.plotting.forecasts import plot_field
+    from africas2s.plotting import TercileStyle
     lat = np.linspace(-5, 5, 4); lon = np.linspace(30, 40, 4)
     field = xr.DataArray(np.zeros((4, 4)), dims=["lat", "lon"],
                          coords={"lat": lat, "lon": lon})
@@ -231,7 +231,7 @@ def test_plot_tercile_comparison_smoke():
     pytest.importorskip("cartopy")
     import matplotlib.pyplot as plt
     import cartopy.crs as ccrs
-    from deepscale.plotting.forecasts import plot_tercile_comparison
+    from africas2s.plotting.forecasts import plot_tercile_comparison
     lat = np.linspace(-5, 5, 6); lon = np.linspace(30, 45, 8)
     fc, ref = _tercile_da(0.5, lat, lon), _tercile_da(0.4, lat, lon)
     fig, axes = plt.subplots(1, 3, subplot_kw={"projection": ccrs.PlateCarree()})
@@ -249,7 +249,7 @@ def test_plot_tercile_comparison_regrids_reference_on_different_grid():
     pytest.importorskip("cartopy")
     import matplotlib.pyplot as plt
     import cartopy.crs as ccrs
-    from deepscale.plotting.forecasts import plot_tercile_comparison
+    from africas2s.plotting.forecasts import plot_tercile_comparison
     fc = _tercile_da(0.5, np.linspace(-5, 5, 6), np.linspace(30, 45, 8))     # coarse
     ref = _tercile_da(0.4, np.linspace(-5, 5, 12), np.linspace(30, 45, 16))  # finer grid
     fig, axes = plt.subplots(1, 3, subplot_kw={"projection": ccrs.PlateCarree()})
@@ -260,8 +260,8 @@ def test_plot_tercile_comparison_regrids_reference_on_different_grid():
 
 def test_region_masks_dry_and_clip():
     pytest.importorskip("shapely")
-    from deepscale.plotting.forecasts import _region_masks
-    from deepscale.plotting import TercileStyle
+    from africas2s.plotting.forecasts import _region_masks
+    from africas2s.plotting import TercileStyle
     lat = np.array([0.0, 1.0]); lon = np.array([37.0, 200.0])   # 37E in Kenya, 200E mid-Pacific
     dry = np.zeros((2, 2), dtype=bool); dry[0, 0] = True
     style = TercileStyle(below_colors=["a"]*5, normal_colors=["a"]*5, above_colors=["a"]*5,
@@ -275,8 +275,8 @@ def test_region_masks_dry_and_clip():
 def test_apply_style_masks_dry_and_clip():
     pytest.importorskip("shapely")
     import numpy as np
-    from deepscale.plotting.forecasts import _apply_style_masks, _tercile_codes
-    from deepscale.plotting import TercileStyle
+    from africas2s.plotting.forecasts import _apply_style_masks, _tercile_codes
+    from africas2s.plotting import TercileStyle
     lat = np.array([0.0, 1.0]); lon = np.array([37.0, 200.0])   # 37E in Kenya, 200E mid-Pacific
     probs = np.zeros((3, 2, 2)); probs[2] = 0.6; probs[1] = 0.25; probs[0] = 0.15
     code, valid = _tercile_codes(probs, [33.3, 40, 50, 60, 70, 100.01])
@@ -291,7 +291,7 @@ def test_apply_style_masks_dry_and_clip():
 def test_apply_style_masks_raises_on_unknown_country():
     pytest.importorskip("shapely")
     pytest.importorskip("cartopy")
-    from deepscale.plotting.forecasts import _country_geometry
+    from africas2s.plotting.forecasts import _country_geometry
     with pytest.raises(ValueError):
         _country_geometry(["Nonexististan"])
 
@@ -302,8 +302,8 @@ def test_apply_style_masks_clip_wins_over_dry():
     pytest.importorskip("shapely")
     pytest.importorskip("cartopy")
     import numpy as np
-    from deepscale.plotting.forecasts import _apply_style_masks, _tercile_codes
-    from deepscale.plotting import TercileStyle
+    from africas2s.plotting.forecasts import _apply_style_masks, _tercile_codes
+    from africas2s.plotting import TercileStyle
     lat = np.array([0.0, 1.0]); lon = np.array([37.0, 200.0])   # 37E in Kenya, 200E mid-Pacific (ocean)
     probs = np.zeros((3, 2, 2)); probs[2] = 0.6; probs[1] = 0.25; probs[0] = 0.15
     code, valid = _tercile_codes(probs, [33.3, 40, 50, 60, 70, 100.01])
@@ -322,8 +322,8 @@ def test_apply_style_masks_aligns_dataarray_mask_on_different_grid():
     raised when a dry_mask built on one grid was applied to a field on another.
     """
     pytest.importorskip("shapely")
-    from deepscale.plotting.forecasts import _apply_style_masks, _tercile_codes
-    from deepscale.plotting import TercileStyle
+    from africas2s.plotting.forecasts import _apply_style_masks, _tercile_codes
+    from africas2s.plotting import TercileStyle
 
     # Mask grid: finer resolution than the field, lat -10..10 step 1. lon_mask
     # spans wider than the field's lon so nearest-neighbor stays in-bounds.
@@ -359,8 +359,8 @@ def test_apply_style_masks_ndarray_shape_mismatch_raises():
     mismatch against the plotted field must raise a clear error instead of
     a raw positional-indexing IndexError."""
     pytest.importorskip("shapely")
-    from deepscale.plotting.forecasts import _apply_style_masks, _tercile_codes
-    from deepscale.plotting import TercileStyle
+    from africas2s.plotting.forecasts import _apply_style_masks, _tercile_codes
+    from africas2s.plotting import TercileStyle
     lat = np.array([0.0, 1.0, 2.0]); lon = np.array([37.0, 40.0])
     probs = np.zeros((3, 3, 2)); probs[2] = 0.6; probs[1] = 0.25; probs[0] = 0.15
     code, valid = _tercile_codes(probs, [33.3, 40, 50, 60, 70, 100.01])
@@ -374,7 +374,7 @@ def test_apply_style_masks_ndarray_shape_mismatch_raises():
 def test_plot_terciles_no_style_still_works():
     pytest.importorskip("matplotlib")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.forecasts import plot_tercile_forecast
+    from africas2s.plotting.forecasts import plot_tercile_forecast
     lat = np.linspace(-5, 5, 6); lon = np.linspace(30, 45, 8)
     probs = np.zeros((3, 6, 8)); probs[2] = 0.6; probs[1] = 0.25; probs[0] = 0.15
     pr = xr.DataArray(probs, dims=["tercile", "lat", "lon"],
@@ -389,8 +389,8 @@ def test_plot_terciles_styled_single_bin_legend():
     'weak' swatch, which used to index colors[1] unconditionally."""
     pytest.importorskip("matplotlib")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.forecasts import plot_tercile_forecast
-    from deepscale.plotting import TercileStyle
+    from africas2s.plotting.forecasts import plot_tercile_forecast
+    from africas2s.plotting import TercileStyle
     lat = np.linspace(-5, 5, 6); lon = np.linspace(30, 45, 8)
     probs = np.zeros((3, 6, 8)); probs[2] = 0.6; probs[1] = 0.25; probs[0] = 0.15
     pr = xr.DataArray(probs, dims=["tercile", "lat", "lon"],
@@ -405,7 +405,7 @@ def test_plot_terciles_styled_single_bin_legend():
 def test_plot_deterministic_forecast_smoke():
     pytest.importorskip("matplotlib")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.forecasts import plot_deterministic_forecast
+    from africas2s.plotting.forecasts import plot_deterministic_forecast
 
     n_lat, n_lon = 4, 5
     da = xr.DataArray(
@@ -421,7 +421,7 @@ def test_plot_deterministic_forecast_smoke():
 def test_plot_exceedance_probability_smoke():
     pytest.importorskip("matplotlib")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.forecasts import plot_exceedance_probability
+    from africas2s.plotting.forecasts import plot_exceedance_probability
 
     n_lat, n_lon = 4, 5
     da = xr.DataArray(
@@ -437,7 +437,7 @@ def test_plot_exceedance_probability_smoke():
 def test_plot_flex_pdf_smoke():
     pytest.importorskip("matplotlib")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.forecasts import plot_flex_pdf
+    from africas2s.plotting.forecasts import plot_flex_pdf
 
     fig = plot_flex_pdf(
         fcst_mu=2.5, fcst_scale=1.2,
@@ -455,7 +455,7 @@ def test_plot_flex_pdf_smoke():
 def test_plot_reliability_diagram_smoke(synthetic_obs):
     pytest.importorskip("matplotlib")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.reliability import plot_reliability_diagram
+    from africas2s.plotting.reliability import plot_reliability_diagram
 
     n_year, n_lat, n_lon = synthetic_obs.shape
     fcst = np.ones((n_year, 3, n_lat, n_lon)) / 3.0
@@ -518,7 +518,7 @@ def _build_dual_grid_fixture(seed=0, n_years=25, signal_amp=2.0, noise_amp=0.3):
 
 
 def test_apply_sign_convention_flips_negative_dominant_lobe():
-    from deepscale.plotting.modes import _apply_sign_convention
+    from africas2s.plotting.modes import _apply_sign_convention
     arr = np.array([[-3.0, 1.0], [0.5, -0.5]])
     flipped, sign = _apply_sign_convention(arr)
     assert sign == -1.0
@@ -528,7 +528,7 @@ def test_apply_sign_convention_flips_negative_dominant_lobe():
 
 
 def test_apply_sign_convention_keeps_positive_dominant_lobe():
-    from deepscale.plotting.modes import _apply_sign_convention
+    from africas2s.plotting.modes import _apply_sign_convention
     arr = np.array([[3.0, -1.0], [0.5, -0.5]])
     out, sign = _apply_sign_convention(arr)
     assert sign == 1.0
@@ -536,7 +536,7 @@ def test_apply_sign_convention_keeps_positive_dominant_lobe():
 
 
 def test_apply_sign_convention_handles_all_nan():
-    from deepscale.plotting.modes import _apply_sign_convention
+    from africas2s.plotting.modes import _apply_sign_convention
     arr = np.full((2, 2), np.nan)
     out, sign = _apply_sign_convention(arr)
     assert sign == 1.0
@@ -545,7 +545,7 @@ def test_apply_sign_convention_handles_all_nan():
 
 def _fit_cca_for_mode_plots():
     """Helper: fit CCAMethod on the dual-grid fixture for plotting tests."""
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     predictor, predictand, _ = _build_dual_grid_fixture()
     m = CCAMethod(n_modes=3, x_eof_modes=4, y_eof_modes=4)
     m.fit(predictor, predictand)
@@ -556,7 +556,7 @@ def test_plot_eof_modes_predictor_returns_figure():
     pytest.importorskip("matplotlib")
     pytest.importorskip("cartopy")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.modes import plot_eof_modes
+    from africas2s.plotting.modes import plot_eof_modes
     m, _, _ = _fit_cca_for_mode_plots()
     fig = plot_eof_modes(m, kind="predictor", n_modes=3)
     assert fig is not None
@@ -570,7 +570,7 @@ def test_plot_eof_modes_predictand_returns_figure():
     pytest.importorskip("matplotlib")
     pytest.importorskip("cartopy")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.modes import plot_eof_modes
+    from africas2s.plotting.modes import plot_eof_modes
     m, _, _ = _fit_cca_for_mode_plots()
     fig = plot_eof_modes(m, kind="predictand", n_modes=2)
     map_axes = [ax for ax in fig.axes if hasattr(ax, "coastlines") and ax.get_visible()]
@@ -581,7 +581,7 @@ def test_plot_eof_modes_predictand_returns_figure():
 def test_plot_eof_modes_invalid_kind_raises():
     pytest.importorskip("matplotlib")
     pytest.importorskip("cartopy")
-    from deepscale.plotting.modes import plot_eof_modes
+    from africas2s.plotting.modes import plot_eof_modes
     m, _, _ = _fit_cca_for_mode_plots()
     with pytest.raises(ValueError, match="kind"):
         plot_eof_modes(m, kind="bogus")
@@ -591,7 +591,7 @@ def test_plot_eof_modes_caps_n_modes_at_available():
     pytest.importorskip("matplotlib")
     pytest.importorskip("cartopy")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.modes import plot_eof_modes
+    from africas2s.plotting.modes import plot_eof_modes
     m, _, _ = _fit_cca_for_mode_plots()
     # Ask for more modes than were fitted; should silently cap.
     fig = plot_eof_modes(m, kind="predictor", n_modes=99)
@@ -604,7 +604,7 @@ def test_plot_eof_modes_title_includes_variance_fraction():
     pytest.importorskip("matplotlib")
     pytest.importorskip("cartopy")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.modes import plot_eof_modes
+    from africas2s.plotting.modes import plot_eof_modes
     m, _, _ = _fit_cca_for_mode_plots()
     fig = plot_eof_modes(m, kind="predictor", n_modes=2)
     titles = [
@@ -620,7 +620,7 @@ def test_plot_cca_modes_returns_paired_grid():
     pytest.importorskip("matplotlib")
     pytest.importorskip("cartopy")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.modes import plot_cca_modes
+    from africas2s.plotting.modes import plot_cca_modes
     m, _, _ = _fit_cca_for_mode_plots()
     fig = plot_cca_modes(m, n_modes=2)
     map_axes = [ax for ax in fig.axes if hasattr(ax, "coastlines") and ax.get_visible()]
@@ -633,7 +633,7 @@ def test_plot_cca_modes_title_includes_canonical_correlation():
     pytest.importorskip("matplotlib")
     pytest.importorskip("cartopy")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.modes import plot_cca_modes
+    from africas2s.plotting.modes import plot_cca_modes
     m, _, _ = _fit_cca_for_mode_plots()
     fig = plot_cca_modes(m, n_modes=1)
     titles = [
@@ -650,7 +650,7 @@ def test_plot_cca_modes_caps_at_available_modes():
     pytest.importorskip("matplotlib")
     pytest.importorskip("cartopy")
     import matplotlib.pyplot as plt
-    from deepscale.plotting.modes import plot_cca_modes
+    from africas2s.plotting.modes import plot_cca_modes
     m, _, _ = _fit_cca_for_mode_plots()
     fig = plot_cca_modes(m, n_modes=99)
     map_axes = [ax for ax in fig.axes if hasattr(ax, "coastlines") and ax.get_visible()]
@@ -663,8 +663,8 @@ def test_mode_plots_dual_grid_integration(tmp_path):
     pytest.importorskip("matplotlib")
     pytest.importorskip("cartopy")
     import matplotlib.pyplot as plt
-    from deepscale.methods.cca import CCAMethod
-    from deepscale.plotting.modes import plot_eof_modes, plot_cca_modes
+    from africas2s.methods.cca import CCAMethod
+    from africas2s.plotting.modes import plot_eof_modes, plot_cca_modes
 
     predictor, predictand, _ = _build_dual_grid_fixture()
     m = CCAMethod(n_modes=3, x_eof_modes=4, y_eof_modes=4)
@@ -688,7 +688,7 @@ def test_plot_cca_modes_pair_shares_sign_convention():
     """Predictor and predictand of a CCA pair should be flipped together."""
     pytest.importorskip("matplotlib")
     pytest.importorskip("cartopy")
-    from deepscale.plotting.modes import (
+    from africas2s.plotting.modes import (
         plot_cca_modes, _apply_sign_convention, _reconstruct_spatial,
     )
     import matplotlib.pyplot as plt
@@ -719,7 +719,7 @@ def test_somalia_territory_merge_and_border_suppression():
     internal de-facto line must be suppressed from drawn borders while shared
     exterior borders (Ethiopia-Somalia) survive."""
     from shapely.geometry import Point, box
-    from deepscale.plotting.forecasts import (
+    from africas2s.plotting.forecasts import (
         _country_geometry, _neutral_border_geoms, _is_internal_border)
     import cartopy.io.shapereader as shpreader
 

@@ -14,16 +14,16 @@ matplotlib = pytest.importorskip("matplotlib")
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-from deepscale.analog import analogs_from_years  # noqa: E402
-from deepscale.climate import seasonal_stack  # noqa: E402
-from deepscale.completion import complete  # noqa: E402
-from deepscale.plotting.scenarios import (  # noqa: E402
+from africas2s.analog import analogs_from_years  # noqa: E402
+from africas2s.climate import seasonal_stack  # noqa: E402
+from africas2s.completion import complete  # noqa: E402
+from africas2s.plotting.scenarios import (  # noqa: E402
     _contiguous_runs,
     _half_widths,
     plot_accumulation_scenarios,
     plot_index_scatter,
 )
-from deepscale.series import error_bounds  # noqa: E402
+from africas2s.series import error_bounds  # noqa: E402
 
 SEASON = "JJAS"
 YEARS = np.arange(1991, 2027)

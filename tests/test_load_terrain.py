@@ -1,7 +1,7 @@
-"""Tests for `deepscale.load_terrain` (Copernicus GLO-90 terrain covariates).
+"""Tests for `africas2s.load_terrain` (Copernicus GLO-90 terrain covariates).
 
 Everything except the marker-gated smoke test runs offline: the tile-reading
-step (`deepscale.terrain._read_tile`) is monkeypatched with synthetic tiles so
+step (`africas2s.terrain._read_tile`) is monkeypatched with synthetic tiles so
 the aggregation math and the cache behavior are exercised without touching the
 Copernicus bucket.
 """
@@ -9,8 +9,8 @@ import numpy as np
 import pytest
 import xarray as xr
 
-import deepscale as ds
-from deepscale import terrain as terrain_mod
+import africas2s as ds
+from africas2s import terrain as terrain_mod
 
 
 # ---------------------------------------------------------------------------

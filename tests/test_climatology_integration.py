@@ -1,6 +1,6 @@
 """Integration test for the climatology baseline downscaling method.
 
-Exercises the full ``deepscale.downscale(method="climatology", ...)`` API
+Exercises the full ``africas2s.downscale(method="climatology", ...)`` API
 against synthetic GCM hindcast + obs data, asserting end-to-end behaviour
 that the unit tests in test_methods.py don't cover individually:
 
@@ -13,12 +13,12 @@ that the unit tests in test_methods.py don't cover individually:
 
 import numpy as np
 
-import deepscale
+import africas2s
 
 
 def test_downscale_climatology_end_to_end(synthetic_gcm_hindcast, synthetic_obs):
     """downscale(method='climatology') returns the obs climatology tiled per-member."""
-    result = deepscale.downscale(
+    result = africas2s.downscale(
         predictor_hindcast=synthetic_gcm_hindcast,
         obs=synthetic_obs,
         method="climatology",
@@ -40,7 +40,7 @@ def test_downscale_climatology_ignores_forecast_choice(
     synthetic_gcm_hindcast, synthetic_gcm_forecast, synthetic_obs,
 ):
     """Passing an explicit (different) forecast must yield the obs climatology."""
-    result = deepscale.downscale(
+    result = africas2s.downscale(
         predictor_hindcast=synthetic_gcm_hindcast,
         obs=synthetic_obs,
         forecast=synthetic_gcm_forecast,

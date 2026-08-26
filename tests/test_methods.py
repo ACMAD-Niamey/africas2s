@@ -8,28 +8,28 @@ import xarray as xr
 # ===================================================================
 
 def test_method_base_is_abstract():
-    from deepscale.methods.base import MethodBase
+    from africas2s.methods.base import MethodBase
     with pytest.raises(TypeError):
         MethodBase()
 
 
 def test_method_registry_lookup():
-    from deepscale.registry import get_method
-    from deepscale.methods.bcsd import BCSDMethod
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.registry import get_method
+    from africas2s.methods.bcsd import BCSDMethod
+    from africas2s.methods.cca import CCAMethod
     assert get_method("bcsd") is BCSDMethod
     assert get_method("cca") is CCAMethod
 
 
 def test_method_registry_missing():
-    from deepscale.registry import get_method
+    from africas2s.registry import get_method
     with pytest.raises(KeyError):
         get_method("nonexistent")
 
 
 def test_register_method_decorator():
-    from deepscale.registry import register_method, get_method
-    from deepscale.methods.base import MethodBase
+    from africas2s.registry import register_method, get_method
+    from africas2s.methods.base import MethodBase
 
     @register_method("test_dummy_m")
     class DummyMethod(MethodBase):
@@ -44,7 +44,7 @@ def test_register_method_decorator():
 # ===================================================================
 
 def test_bcsd_fit_stores_state(synthetic_gcm_hindcast, synthetic_obs):
-    from deepscale.methods.bcsd import BCSDMethod
+    from africas2s.methods.bcsd import BCSDMethod
     m = BCSDMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     assert hasattr(m, "obs_clim_")
@@ -53,7 +53,7 @@ def test_bcsd_fit_stores_state(synthetic_gcm_hindcast, synthetic_obs):
 
 
 def test_bcsd_predict_shape(synthetic_gcm_hindcast, synthetic_gcm_forecast, synthetic_obs):
-    from deepscale.methods.bcsd import BCSDMethod
+    from africas2s.methods.bcsd import BCSDMethod
     m = BCSDMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     result = m.predict(synthetic_gcm_forecast)
@@ -63,7 +63,7 @@ def test_bcsd_predict_shape(synthetic_gcm_hindcast, synthetic_gcm_forecast, synt
 
 
 def test_bcsd_predict_values_plausible(synthetic_gcm_hindcast, synthetic_gcm_forecast, synthetic_obs):
-    from deepscale.methods.bcsd import BCSDMethod
+    from africas2s.methods.bcsd import BCSDMethod
     m = BCSDMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     result = m.predict(synthetic_gcm_forecast)
@@ -76,7 +76,7 @@ def test_bcsd_predict_values_plausible(synthetic_gcm_hindcast, synthetic_gcm_for
 # ===================================================================
 
 def test_cca_fit_stores_state(synthetic_gcm_hindcast, synthetic_obs):
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     m = CCAMethod(n_modes=2)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     assert hasattr(m, "mu_")  # canonical correlations
@@ -84,7 +84,7 @@ def test_cca_fit_stores_state(synthetic_gcm_hindcast, synthetic_obs):
 
 
 def test_cca_predict_shape(synthetic_gcm_hindcast, synthetic_gcm_forecast, synthetic_obs):
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     m = CCAMethod(n_modes=2)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     result = m.predict(synthetic_gcm_forecast)
@@ -94,7 +94,7 @@ def test_cca_predict_shape(synthetic_gcm_hindcast, synthetic_gcm_forecast, synth
 
 
 def test_cca_with_few_modes(synthetic_gcm_hindcast, synthetic_gcm_forecast, synthetic_obs):
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     m = CCAMethod(n_modes=2)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     result = m.predict(synthetic_gcm_forecast)
@@ -102,7 +102,7 @@ def test_cca_with_few_modes(synthetic_gcm_hindcast, synthetic_gcm_forecast, synt
 
 
 def test_cca_with_short_hindcast(synthetic_gcm_forecast, synthetic_obs):
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     # Only 5 years
     short_years = np.arange(2000, 2005)
     gcm = xr.DataArray(
@@ -123,7 +123,7 @@ def test_cca_with_short_hindcast(synthetic_gcm_forecast, synthetic_obs):
 # ===================================================================
 
 def test_cca_eof_fit_stores_pca_state(synthetic_gcm_hindcast, synthetic_obs):
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     m = CCAMethod(n_modes=2, x_eof_modes=3, y_eof_modes=3)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     assert hasattr(m, "eofx_")
@@ -132,7 +132,7 @@ def test_cca_eof_fit_stores_pca_state(synthetic_gcm_hindcast, synthetic_obs):
 
 
 def test_cca_eof_predict_shape(synthetic_gcm_hindcast, synthetic_gcm_forecast, synthetic_obs):
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     m = CCAMethod(n_modes=2, x_eof_modes=3, y_eof_modes=3)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     result = m.predict(synthetic_gcm_forecast)
@@ -141,8 +141,8 @@ def test_cca_eof_predict_shape(synthetic_gcm_hindcast, synthetic_gcm_forecast, s
 
 
 def test_cca_eof_produces_nondegenerate_terciles(synthetic_gcm_hindcast, synthetic_obs):
-    from deepscale.methods.cca import CCAMethod
-    from deepscale.tercile import to_tercile
+    from africas2s.methods.cca import CCAMethod
+    from africas2s.tercile import to_tercile
     m = CCAMethod(n_modes=2, x_eof_modes=3, y_eof_modes=3)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     forecast = synthetic_gcm_hindcast.isel(year=-1, drop=True)
@@ -153,7 +153,7 @@ def test_cca_eof_produces_nondegenerate_terciles(synthetic_gcm_hindcast, synthet
 
 
 def test_cca_auto_eof_modes(synthetic_gcm_hindcast, synthetic_obs):
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     m = CCAMethod(n_modes=2)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     assert hasattr(m, "eofx_")
@@ -166,7 +166,7 @@ def test_cca_auto_eof_modes(synthetic_gcm_hindcast, synthetic_obs):
 
 def test_cca_stores_predictor_coords(synthetic_gcm_hindcast, synthetic_obs):
     """Predictor lat/lon must be stored separately from predictand."""
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     m = CCAMethod(n_modes=2)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     assert hasattr(m, "predictor_coords_")
@@ -180,7 +180,7 @@ def test_cca_stores_predictor_coords(synthetic_gcm_hindcast, synthetic_obs):
 
 def test_cca_stores_predictand_coords(synthetic_gcm_hindcast, synthetic_obs):
     """Predictand lat/lon must be stored separately from predictor."""
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     m = CCAMethod(n_modes=2)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     assert hasattr(m, "predictand_coords_")
@@ -194,7 +194,7 @@ def test_cca_stores_predictand_coords(synthetic_gcm_hindcast, synthetic_obs):
 
 def test_cca_stores_distinct_predictor_and_predictand_shapes(synthetic_gcm_hindcast, synthetic_obs):
     """When grids differ, the two shapes must be stored independently."""
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     m = CCAMethod(n_modes=2)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     assert m.predictor_shape_ == (
@@ -210,7 +210,7 @@ def test_cca_stores_distinct_predictor_and_predictand_shapes(synthetic_gcm_hindc
 
 def test_cca_eofx_reconstructs_to_predictor_grid(synthetic_gcm_hindcast, synthetic_obs):
     """eofx_ + x_valid_ + predictor_shape_ must reconstruct a spatial map (§3.2 contract)."""
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     m = CCAMethod(n_modes=2, x_eof_modes=3, y_eof_modes=3)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     n_predictor_pts = int(np.prod(m.predictor_shape_))
@@ -223,7 +223,7 @@ def test_cca_eofx_reconstructs_to_predictor_grid(synthetic_gcm_hindcast, synthet
 
 def test_cca_eofy_reconstructs_to_predictand_grid(synthetic_gcm_hindcast, synthetic_obs):
     """eofy_ + y_valid_ + predictand_shape_ must reconstruct a spatial map (§3.2 contract)."""
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     m = CCAMethod(n_modes=2, x_eof_modes=3, y_eof_modes=3)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     n_predictand_pts = int(np.prod(m.predictand_shape_))
@@ -238,7 +238,7 @@ def test_cca_predicts_on_predictand_grid_when_grids_differ(
     synthetic_gcm_hindcast, synthetic_gcm_forecast, synthetic_obs
 ):
     """Predict output must use the predictand grid, not the predictor grid."""
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     assert synthetic_gcm_hindcast.shape[2:] != synthetic_obs.shape[1:]
     m = CCAMethod(n_modes=2)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
@@ -295,13 +295,13 @@ def _build_dual_grid_fixture(seed=0, n_years=25, signal_amp=2.0, noise_amp=0.3):
 
 def test_cca_dual_grid_integration_end_to_end():
     """Integration: full dual-grid call via the public downscale() API."""
-    import deepscale
+    import africas2s
     predictor, predictand, _ = _build_dual_grid_fixture()
     forecast = predictor.isel(year=-1, drop=True)
     train_predictor = predictor.isel(year=slice(None, -1))
     train_predictand = predictand.isel(year=slice(None, -1))
 
-    result = deepscale.downscale(
+    result = africas2s.downscale(
         train_predictor, train_predictand, method="cca", forecast=forecast
     )
     assert result.dims == ("member", "lat", "lon")
@@ -314,7 +314,7 @@ def test_cca_dual_grid_integration_end_to_end():
 
 def test_cca_dual_grid_recovers_planted_signal():
     """Integration: CCA on dual grids recovers a known planted relationship."""
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     predictor, predictand, o_pattern = _build_dual_grid_fixture()
 
     train_predictor = predictor.isel(year=slice(None, -1))
@@ -341,7 +341,7 @@ def test_cca_predict_rejects_forecast_with_wrong_grid_shape(synthetic_gcm_hindca
     """Calling predict() with a forecast on a different grid than the
     training predictor used to crash with a cryptic boolean-indexing
     IndexError. Now raises a clear ValueError naming both shapes."""
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     m = CCAMethod(n_modes=2)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
 
@@ -358,7 +358,7 @@ def test_cca_predict_rejects_forecast_with_wrong_grid_shape(synthetic_gcm_hindca
 
 def test_cca_same_grid_case_still_works():
     """Regression guard: predictor==predictand grid is just a special case."""
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     rng = np.random.default_rng(0)
     years = np.arange(2000, 2010)
     members = np.arange(2)
@@ -393,13 +393,13 @@ def test_cca_same_grid_case_still_works():
 
 def test_rank_analog_registry_lookup():
     """The rank-analog method registers under the canonical name."""
-    from deepscale.registry import get_method
-    from deepscale.methods.rank_analog import RankAnalogMethod
+    from africas2s.registry import get_method
+    from africas2s.methods.rank_analog import RankAnalogMethod
     assert get_method("rank-analog") is RankAnalogMethod
 
 
 def test_rank_analog_fit_stores_state(synthetic_gcm_hindcast, synthetic_obs):
-    from deepscale.methods.rank_analog import RankAnalogMethod
+    from africas2s.methods.rank_analog import RankAnalogMethod
     m = RankAnalogMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     assert hasattr(m, "obs_sorted_")
@@ -413,7 +413,7 @@ def test_rank_analog_fit_stores_state(synthetic_gcm_hindcast, synthetic_obs):
 def test_rank_analog_fit_obs_sorted_is_ascending_per_cell(synthetic_gcm_hindcast, synthetic_obs):
     """obs_sorted_[k, i, j] must be non-decreasing in k for every cell."""
     import numpy as np
-    from deepscale.methods.rank_analog import RankAnalogMethod
+    from africas2s.methods.rank_analog import RankAnalogMethod
     m = RankAnalogMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     sorted_vals = m.obs_sorted_.values
@@ -423,7 +423,7 @@ def test_rank_analog_fit_obs_sorted_is_ascending_per_cell(synthetic_gcm_hindcast
 
 def test_rank_analog_fit_hindcast_mean_collapses_member(synthetic_gcm_hindcast, synthetic_obs):
     """fit() reduces ensemble members to their mean per (year, lat, lon)."""
-    from deepscale.methods.rank_analog import RankAnalogMethod
+    from africas2s.methods.rank_analog import RankAnalogMethod
     m = RankAnalogMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     assert "member" not in m.hindcast_mean_.dims
@@ -432,7 +432,7 @@ def test_rank_analog_fit_hindcast_mean_collapses_member(synthetic_gcm_hindcast, 
 
 def test_rank_analog_fit_auto_upscale_factor(synthetic_gcm_hindcast, synthetic_obs):
     """Auto-derived upscale_factor_ is a positive integer matching the grid ratio."""
-    from deepscale.methods.rank_analog import RankAnalogMethod
+    from africas2s.methods.rank_analog import RankAnalogMethod
     m = RankAnalogMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     expected = max(
@@ -446,7 +446,7 @@ def test_rank_analog_fit_auto_upscale_factor(synthetic_gcm_hindcast, synthetic_o
 
 def test_rank_analog_fit_explicit_upscale_factor_honored(synthetic_gcm_hindcast, synthetic_obs):
     """When upscale_factor is passed to __init__, fit() preserves it verbatim."""
-    from deepscale.methods.rank_analog import RankAnalogMethod
+    from africas2s.methods.rank_analog import RankAnalogMethod
     m = RankAnalogMethod(upscale_factor=7)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     assert m.upscale_factor_ == 7
@@ -454,7 +454,7 @@ def test_rank_analog_fit_explicit_upscale_factor_honored(synthetic_gcm_hindcast,
 
 def test_rank_analog_predict_shape(synthetic_gcm_hindcast, synthetic_gcm_forecast, synthetic_obs):
     """predict() returns (member, lat, lon) on the obs grid."""
-    from deepscale.methods.rank_analog import RankAnalogMethod
+    from africas2s.methods.rank_analog import RankAnalogMethod
     m = RankAnalogMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     result = m.predict(synthetic_gcm_forecast)
@@ -470,7 +470,7 @@ def test_rank_analog_predict_values_bounded_by_obs(
     """Output values fall inside the range of the obs climatology
     (rank-analog can only emit observed values)."""
     import numpy as np
-    from deepscale.methods.rank_analog import RankAnalogMethod
+    from africas2s.methods.rank_analog import RankAnalogMethod
     m = RankAnalogMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     result = m.predict(synthetic_gcm_forecast)
@@ -485,7 +485,7 @@ def test_rank_analog_predict_member_coord_preserved(
 ):
     """Member coordinate values pass through unchanged."""
     import numpy as np
-    from deepscale.methods.rank_analog import RankAnalogMethod
+    from africas2s.methods.rank_analog import RankAnalogMethod
     m = RankAnalogMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     result = m.predict(synthetic_gcm_forecast)
@@ -501,7 +501,7 @@ def test_rank_analog_predict_high_forecast_yields_high_obs(
     of the obs climatology at every cell."""
     import numpy as np
     import xarray as xr
-    from deepscale.methods.rank_analog import RankAnalogMethod
+    from africas2s.methods.rank_analog import RankAnalogMethod
 
     m = RankAnalogMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
@@ -525,7 +525,7 @@ def test_rank_analog_predict_squeezes_singleton_year(
 ):
     """If the forecast still carries a singleton year dim (CV-loop pattern),
     predict() squeezes it cleanly."""
-    from deepscale.methods.rank_analog import RankAnalogMethod
+    from africas2s.methods.rank_analog import RankAnalogMethod
     m = RankAnalogMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     fc_with_year = synthetic_gcm_forecast.expand_dims(year=[2030])
@@ -539,13 +539,13 @@ def test_rank_analog_predict_squeezes_singleton_year(
 
 def test_climatology_registry_lookup():
     """The climatology method registers under the canonical name."""
-    from deepscale.registry import get_method
-    from deepscale.methods.climatology import ClimatologyMethod
+    from africas2s.registry import get_method
+    from africas2s.methods.climatology import ClimatologyMethod
     assert get_method("climatology") is ClimatologyMethod
 
 
 def test_climatology_fit_stores_state(synthetic_gcm_hindcast, synthetic_obs):
-    from deepscale.methods.climatology import ClimatologyMethod
+    from africas2s.methods.climatology import ClimatologyMethod
     m = ClimatologyMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     assert hasattr(m, "climatology_")
@@ -555,7 +555,7 @@ def test_climatology_fit_stores_state(synthetic_gcm_hindcast, synthetic_obs):
 def test_climatology_fit_climatology_is_obs_mean(synthetic_gcm_hindcast, synthetic_obs):
     """climatology_ must equal the per-cell mean of obs along the year axis."""
     import numpy as np
-    from deepscale.methods.climatology import ClimatologyMethod
+    from africas2s.methods.climatology import ClimatologyMethod
     m = ClimatologyMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     expected = synthetic_obs.mean("year").values
@@ -564,7 +564,7 @@ def test_climatology_fit_climatology_is_obs_mean(synthetic_gcm_hindcast, synthet
 
 def test_climatology_fit_climatology_is_on_obs_grid(synthetic_gcm_hindcast, synthetic_obs):
     """climatology_ has the obs lat/lon shape, no member, no year."""
-    from deepscale.methods.climatology import ClimatologyMethod
+    from africas2s.methods.climatology import ClimatologyMethod
     m = ClimatologyMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     assert m.climatology_.dims == ("lat", "lon")
@@ -574,7 +574,7 @@ def test_climatology_fit_climatology_is_on_obs_grid(synthetic_gcm_hindcast, synt
 
 def test_climatology_predict_shape(synthetic_gcm_hindcast, synthetic_gcm_forecast, synthetic_obs):
     """predict() returns (member, lat, lon) on the obs grid."""
-    from deepscale.methods.climatology import ClimatologyMethod
+    from africas2s.methods.climatology import ClimatologyMethod
     m = ClimatologyMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     result = m.predict(synthetic_gcm_forecast)
@@ -589,7 +589,7 @@ def test_climatology_predict_is_constant_across_members(
 ):
     """Every member must hold the same climatology field — no member-to-member variance."""
     import numpy as np
-    from deepscale.methods.climatology import ClimatologyMethod
+    from africas2s.methods.climatology import ClimatologyMethod
     m = ClimatologyMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     result = m.predict(synthetic_gcm_forecast)
@@ -603,7 +603,7 @@ def test_climatology_predict_ignores_forecast_values(
 ):
     """Doubling the forecast values must not change predict()'s output."""
     import numpy as np
-    from deepscale.methods.climatology import ClimatologyMethod
+    from africas2s.methods.climatology import ClimatologyMethod
     m = ClimatologyMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     fcst_a = synthetic_gcm_hindcast.isel(year=0, drop=True)
@@ -618,7 +618,7 @@ def test_climatology_predict_member_coord_preserved(
 ):
     """Member coordinate values pass through unchanged."""
     import numpy as np
-    from deepscale.methods.climatology import ClimatologyMethod
+    from africas2s.methods.climatology import ClimatologyMethod
     m = ClimatologyMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     result = m.predict(synthetic_gcm_forecast)
@@ -631,7 +631,7 @@ def test_climatology_predict_squeezes_singleton_year(
     synthetic_gcm_hindcast, synthetic_gcm_forecast, synthetic_obs,
 ):
     """A forecast with a singleton year axis (CV-loop pattern) is handled cleanly."""
-    from deepscale.methods.climatology import ClimatologyMethod
+    from africas2s.methods.climatology import ClimatologyMethod
     m = ClimatologyMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     fc_with_year = synthetic_gcm_forecast.expand_dims(year=[2030])
@@ -650,10 +650,10 @@ from pathlib import Path as _Path  # noqa: E402
 
 def _fresh_methods():
     """Default-constructed instances of every picklable method."""
-    from deepscale.methods.bcsd import BCSDMethod
-    from deepscale.methods.cca import CCAMethod
-    from deepscale.methods.climatology import ClimatologyMethod
-    from deepscale.methods.rank_analog import RankAnalogMethod
+    from africas2s.methods.bcsd import BCSDMethod
+    from africas2s.methods.cca import CCAMethod
+    from africas2s.methods.climatology import ClimatologyMethod
+    from africas2s.methods.rank_analog import RankAnalogMethod
     return [
         BCSDMethod(),
         CCAMethod(n_modes=2),
@@ -664,10 +664,10 @@ def _fresh_methods():
 
 def _method_specs():
     """(Class, kwargs) for a fresh instance of each picklable method."""
-    from deepscale.methods.bcsd import BCSDMethod
-    from deepscale.methods.cca import CCAMethod
-    from deepscale.methods.climatology import ClimatologyMethod
-    from deepscale.methods.rank_analog import RankAnalogMethod
+    from africas2s.methods.bcsd import BCSDMethod
+    from africas2s.methods.cca import CCAMethod
+    from africas2s.methods.climatology import ClimatologyMethod
+    from africas2s.methods.rank_analog import RankAnalogMethod
     return [
         (BCSDMethod, {}),
         (CCAMethod, {"n_modes": 2}),
@@ -713,7 +713,7 @@ def test_save_load_roundtrip_is_bit_identical(
 def test_load_returns_self_for_chaining(
     synthetic_gcm_hindcast, synthetic_gcm_forecast, synthetic_obs, tmp_path
 ):
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     ckpt = tmp_path / "ckpt.pkl"
     m1 = CCAMethod(n_modes=2)
     m1.fit(synthetic_gcm_hindcast, synthetic_obs)
@@ -724,14 +724,14 @@ def test_load_returns_self_for_chaining(
 
 
 def test_save_unfitted_method_raises(tmp_path):
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
     m = CCAMethod(n_modes=2)
     with pytest.raises(RuntimeError, match="not fitted"):
         m.save(tmp_path / "x.pkl")
 
 
 def test_save_accepts_str_path(synthetic_gcm_hindcast, synthetic_obs, tmp_path):
-    from deepscale.methods.climatology import ClimatologyMethod
+    from africas2s.methods.climatology import ClimatologyMethod
     m = ClimatologyMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     path_str = str(tmp_path / "ckpt.pkl")  # str, not Path
@@ -746,7 +746,7 @@ def test_checkpoint_survives_fresh_process(
     synthetic_gcm_hindcast, synthetic_gcm_forecast, synthetic_obs, tmp_path
 ):
     """fit+save here; load+predict in a brand-new interpreter; assert identical."""
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
 
     ckpt = tmp_path / "model.pkl"
     fcst_nc = tmp_path / "forecast.nc"
@@ -764,7 +764,7 @@ def test_checkpoint_survives_fresh_process(
     child.write_text(
         "import numpy as np\n"
         "import xarray as xr\n"
-        "from deepscale.methods.cca import CCAMethod\n"
+        "from africas2s.methods.cca import CCAMethod\n"
         f"forecast = xr.open_dataarray(r'{fcst_nc}')\n"
         f"expected = xr.open_dataarray(r'{expected_nc}')\n"
         "m = CCAMethod()\n"
@@ -790,7 +790,7 @@ def test_checkpoint_survives_fresh_process(
 def _make_dummy_prob_cls():
     """A minimal ProbabilisticMethodBase whose predict_distribution returns an
     ensemble (the coarse forecast bilinearly regridded to the obs grid)."""
-    from deepscale.methods.base import ProbabilisticMethodBase
+    from africas2s.methods.base import ProbabilisticMethodBase
 
     class _DummyProb(ProbabilisticMethodBase):
         def fit(self, hindcast, obs, **kwargs):
@@ -809,7 +809,7 @@ def _make_dummy_prob_cls():
 
 def test_probabilistic_base_is_abstract():
     """predict_distribution is abstract — the base can't be instantiated."""
-    from deepscale.methods.base import ProbabilisticMethodBase
+    from africas2s.methods.base import ProbabilisticMethodBase
     with pytest.raises(TypeError):
         ProbabilisticMethodBase()
 
@@ -840,11 +840,11 @@ def test_downscale_tercile_uses_counting_for_probabilistic(
 ):
     """downscale(output_type='tercile') routes probabilistic methods through
     predict_distribution + member counting (no Gaussian fit-to-deterministic)."""
-    import deepscale
-    from deepscale.registry import register_method
+    import africas2s
+    from africas2s.registry import register_method
     register_method("test_prob_counting")(_make_dummy_prob_cls())
 
-    terc = deepscale.downscale(
+    terc = africas2s.downscale(
         synthetic_gcm_hindcast, synthetic_obs,
         method="test_prob_counting", output_type="tercile", verbose=False,
     )

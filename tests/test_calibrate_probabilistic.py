@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 import xarray as xr
-import deepscale
+import africas2s
 
 SEASONS = ["DJF","JFM","FMA","MAM","AMJ","MJJ","JJA","JAS","ASO","SON","OND","NDJ"]
 
@@ -19,7 +19,7 @@ def _cube(seed=0, nla=2, nlo=3, ny=25, nm=8):
 
 def test_tercile_output_shape_and_simplex_normal():
     fc, ob = _cube()
-    out = deepscale.calibrate(fc, ob, method="smoothed_regression", output_type="tercile",
+    out = africas2s.calibrate(fc, ob, method="smoothed_regression", output_type="tercile",
                               distribution="normal", temporal_sigma="constant", forecast_year=2010)
     assert out.dims == ("season", "tercile", "lat", "lon")
     assert out.sizes["tercile"] == 3
@@ -28,7 +28,7 @@ def test_tercile_output_shape_and_simplex_normal():
 def test_tercile_output_gamma_nonneg_consistent():
     fc, ob = _cube(seed=1)
     fc = np.abs(fc) + 0.1; ob = np.abs(ob) + 0.1     # positive "precip"
-    out = deepscale.calibrate(fc, ob, method="smoothed_regression", output_type="tercile",
+    out = africas2s.calibrate(fc, ob, method="smoothed_regression", output_type="tercile",
                               distribution="gamma", temporal_sigma="1", forecast_year=2010)
     assert out.dims == ("season", "tercile", "lat", "lon")
     np.testing.assert_allclose(out.sum("tercile").values, 1.0, atol=1e-9)
@@ -36,7 +36,7 @@ def test_tercile_output_gamma_nonneg_consistent():
 
 def test_deterministic_path_unchanged():
     fc, ob = _cube()
-    out = deepscale.calibrate(fc, ob, method="smoothed_regression",
+    out = africas2s.calibrate(fc, ob, method="smoothed_regression",
                               output_type="deterministic", temporal_sigma="constant", forecast_year=2010)
     assert out.dims == ("season", "lat", "lon")
 
@@ -44,11 +44,11 @@ def test_tercile_requires_member_dim():
     # tercile needs the ensemble spread; a member-less predictor is rejected up front.
     fc, ob = _cube()
     with pytest.raises(ValueError, match="requires an ensemble predictor"):
-        deepscale.calibrate(fc.mean("member"), ob, method="smoothed_regression",
+        africas2s.calibrate(fc.mean("member"), ob, method="smoothed_regression",
                             output_type="tercile", temporal_sigma="constant", forecast_year=2010)
 
 def test_tercile_unknown_distribution_raises():
     fc, ob = _cube()
     with pytest.raises(ValueError, match="unknown distribution"):
-        deepscale.calibrate(fc, ob, method="smoothed_regression", output_type="tercile",
+        africas2s.calibrate(fc, ob, method="smoothed_regression", output_type="tercile",
                             distribution="lognormal", temporal_sigma="constant", forecast_year=2010)

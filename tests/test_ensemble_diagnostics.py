@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale import ensemble
+from africas2s import ensemble
 
 
 def _gridded(values, *, years, name):

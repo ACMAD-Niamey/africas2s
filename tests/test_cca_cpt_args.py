@@ -14,8 +14,8 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale.methods.cca import CCAMethod
-from deepscale.pipelines.seasonal import seasonal_mme, _METHOD_PARAMS
+from africas2s.methods.cca import CCAMethod
+from africas2s.pipelines.seasonal import seasonal_mme, _METHOD_PARAMS
 
 
 def _tracks(hcst):
@@ -107,7 +107,7 @@ def test_skillmask_replaces_low_skill_with_climatology(synthetic_gcm_hindcast, s
 
 # ---- C6: crossvalidation_window threading ----
 def test_crossvalidation_window_threaded(monkeypatch, synthetic_gcm_hindcast, synthetic_obs):
-    import deepscale.pipelines.seasonal as S
+    import africas2s.pipelines.seasonal as S
     captured = {}
 
     def fake_cv(years, window=1):
@@ -124,7 +124,7 @@ def test_crossvalidation_window_threaded(monkeypatch, synthetic_gcm_hindcast, sy
 def test_cca_mode_selection_auto_applies_selected_modes(
     monkeypatch, synthetic_gcm_hindcast, synthetic_obs
 ):
-    import deepscale.methods.cca as C
+    import africas2s.methods.cca as C
 
     captured = {}
 
@@ -189,7 +189,7 @@ def test_capped_mode_ranges_bounds_by_sample_size():
     """Mode search ranges are capped by what the sample supports, so the search
     can't pick mode counts that drive the downstream Student-t dof (n-modes-1)
     to <= 1 on short hindcasts."""
-    from deepscale.methods.cca import _capped_mode_ranges
+    from africas2s.methods.cca import _capped_mode_ranges
 
     # 11 years, window=1 -> cap = 11 - 1 - 2 = 8
     x, y, c = _capped_mode_ranges((1, 10), (1, 10), (1, 10), n_years=11, window=1)
@@ -207,7 +207,7 @@ def test_select_modes_does_not_pick_degenerate_high_modes_on_short_hindcast(
 ):
     """On a short hindcast the selected modes must keep the full-data CPT dof
     (n - x_eof - 1) >= 2, so cpt_per_model never silently drops the model."""
-    from deepscale.methods.cca import select_modes
+    from africas2s.methods.cca import select_modes
 
     years = [int(y) for y in synthetic_obs.year.values][:8]
     gcm = synthetic_gcm_hindcast.sel(year=years)
@@ -227,7 +227,7 @@ def test_cca_mode_selection_provides_default_fallback(
     """When the caller doesn't pass mode_selection_fallback, the pipeline must
     still supply one so a model whose CV goodness is never finite falls back to
     minimal modes instead of aborting the whole MME run."""
-    import deepscale.methods.cca as C
+    import africas2s.methods.cca as C
 
     captured = {}
 
@@ -249,7 +249,7 @@ def test_cca_mode_selection_provides_default_fallback(
 def test_select_modes_raises_when_goodness_is_never_finite(
     synthetic_gcm_hindcast, synthetic_obs
 ):
-    from deepscale.methods.cca import select_modes
+    from africas2s.methods.cca import select_modes
 
     obs = synthetic_obs * np.nan
     years = [int(y) for y in obs.year.values]

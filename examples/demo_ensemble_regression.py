@@ -5,7 +5,7 @@ Real-data path (default): fetches a multi-model C3S precipitation hindcast
 (ECMWF, MeteoFrance, CMCC; Feb-init -> MAM) and ERA5 precipitation observations
 over East Africa via Rosetta, regrids each GCM onto the obs grid (eReg is a
 per-cell calibration, so predictor and predictand must share a grid), and runs
-`deepscale.calibrate(method="ereg")`. The published forecast terciles are the
+`africas2s.calibrate(method="ereg")`. The published forecast terciles are the
 average of each model's own calibrated-Gaussian terciles.
 
 Always writes a dominant-tercile map PNG to examples/output/.
@@ -25,8 +25,8 @@ from pathlib import Path
 
 import numpy as np
 import xarray as xr
-import deepscale as ds
-from deepscale.plotting import plot_tercile_forecast
+import africas2s as ds
+from africas2s.plotting import plot_tercile_forecast
 
 REGION = [-5, 5, 33, 48]                 # East Africa [lat_s, lat_n, lon_w, lon_e]
 HINDCAST_YEARS = list(range(2000, 2015))

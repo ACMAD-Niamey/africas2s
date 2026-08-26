@@ -17,10 +17,10 @@ from __future__ import annotations
 
 import numpy as np
 import xarray as xr
-import deepscale as ds
-from deepscale.methods.base import ProbabilisticMethodBase
-from deepscale.registry import register_method
-from deepscale.tercile import to_tercile
+import africas2s as ds
+from africas2s.methods.base import ProbabilisticMethodBase
+from africas2s.registry import register_method
+from africas2s.tercile import to_tercile
 
 
 @register_method("demo_spread")

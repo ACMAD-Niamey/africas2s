@@ -1,9 +1,9 @@
-"""deepscale.mask_by_skill / dry_mask — forecast masking, lifted from ACMAD's combination.core."""
+"""africas2s.mask_by_skill / dry_mask — forecast masking, lifted from ACMAD's combination.core."""
 import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale import mask_by_skill, dry_mask
+from africas2s import mask_by_skill, dry_mask
 
 
 def _probs(nan=False):

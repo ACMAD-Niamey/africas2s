@@ -1,7 +1,7 @@
 # S2S downscaling testbed configuration.
 # Add a country: copy a block, set bbox, pick methods from the registered list.
 # Add a method to an existing country: append to `methods:` and ensure the
-# method is registered in src/deepscale/methods/.
+# method is registered in src/africas2s/methods/.
 #
 # Valid methods (as of 2026-05-21): raw, climatology, bcsd, cca, rank-analog.
 # Valid obs products (rosetta): obs/chirps-v2-dekadal-rhiza (obs), obs/chirps-live-rhiza (obs_live).

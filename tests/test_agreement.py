@@ -1,6 +1,6 @@
-"""Agreement tests: DeepScale vs PyCPT reference values.
+"""Agreement tests: AfricaS2S vs PyCPT reference values.
 
-Run:  pytest deepscale/tests/test_agreement.py -m agreement -v
+Run:  pytest africas2s/tests/test_agreement.py -m agreement -v
 Requires: CDS credentials (~/.cdsapirc), network access
 """
 import sys
@@ -12,10 +12,10 @@ import xarray as xr
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-import deepscale
-from deepscale.cv import loyo
-from deepscale.registry import get_method
-from deepscale.tercile import to_tercile_cv
+import africas2s
+from africas2s.cv import loyo
+from africas2s.registry import get_method
+from africas2s.tercile import to_tercile_cv
 from reproduce import fetch_obs, fetch_gcm, DEFAULTS
 
 YEARS = list(range(DEFAULTS["years"][0], DEFAULTS["years"][1] + 1))
@@ -50,7 +50,7 @@ def cv_results(data):
 def test_pearson_r_meets_pycpt(data, cv_results):
     obs, _ = data
     cv, _ = cv_results
-    r = float(deepscale.skill(cv, obs, metrics=["pearson_r"], spatial=True).spatial["pearson_r"].mean())
+    r = float(africas2s.skill(cv, obs, metrics=["pearson_r"], spatial=True).spatial["pearson_r"].mean())
     assert r >= PYCPT_PEARSON - 0.05, f"Pearson r {r:+.3f} below PyCPT {PYCPT_PEARSON:+.3f} - 0.05"
 
 
@@ -58,7 +58,7 @@ def test_pearson_r_meets_pycpt(data, cv_results):
 def test_rpss_not_catastrophic(data, cv_results):
     obs, _ = data
     cv, _ = cv_results
-    rpss = float(deepscale.skill(
+    rpss = float(africas2s.skill(
         to_tercile_cv(cv, obs, method="bootstrap"), obs, metrics=["rpss"], spatial=True
     ).spatial["rpss"].mean())
     assert rpss > -0.5, f"RPSS {rpss:+.3f} is unreasonably negative"
@@ -83,7 +83,7 @@ def test_rpss_loo_bounded(data, cv_results):
     obs, _ = data
     cv, leverages = cv_results
     tercile = to_tercile_cv(cv, obs, method="cpt", leverages=leverages, n_modes=X_EOF)
-    rpss = float(deepscale.skill(
+    rpss = float(africas2s.skill(
         tercile, obs, metrics=["rpss"], spatial=True,
         loo_boundaries=True, bounded=True, cv_window=5,
     ).spatial["rpss"].mean())

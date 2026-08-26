@@ -9,7 +9,7 @@ Run from the repository root:
   uv run python examples/demo_forecast.py
 
 Prerequisites:
-  1. Install Rosetta and DeepScale in local virtualenvs.
+  1. Install Rosetta and AfricaS2S in local virtualenvs.
   2. Configure CDS credentials in ~/.cdsapirc (see rosetta/README.md).
   3. Accept CDS dataset licenses for ERA5 + C3S datasets.
 """
@@ -18,11 +18,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import xarray as xr
-import deepscale as ds
-from deepscale.cv import loyo
-from deepscale.tercile import to_tercile
-from deepscale.skill import SkillReport
-from deepscale.plotting import (
+import africas2s as ds
+from africas2s.cv import loyo
+from africas2s.tercile import to_tercile
+from africas2s.skill import SkillReport
+from africas2s.plotting import (
     plot_domains, plot_deterministic_forecast,
     plot_skill_maps, plot_tercile_forecast,
     plot_reliability_diagram,
@@ -77,7 +77,7 @@ def seasonal_to_gcm(dset, years):
 def main() -> None:
     import rosetta
 
-    header = "Seasonal temperature forecast: East Africa MAM (real CDS data via Rosetta + DeepScale)"
+    header = "Seasonal temperature forecast: East Africa MAM (real CDS data via Rosetta + AfricaS2S)"
     print(f"\n{header}\n" + "-" * len(header))
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -346,7 +346,7 @@ def main() -> None:
         print(f"    Saved -> {out}")
 
     except ImportError:
-        print("\n    (plotting deps not installed - skipping plots; install with `pip install deepscale[plotting]`)")
+        print("\n    (plotting deps not installed - skipping plots; install with `pip install africas2s[plotting]`)")
 
     print("\nseasonal-forecast demo complete.")
 

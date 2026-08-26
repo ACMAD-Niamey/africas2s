@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale.registry import get_metric
+from africas2s.registry import get_metric
 
 
 def _da(vals):

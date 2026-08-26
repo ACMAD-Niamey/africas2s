@@ -1,14 +1,14 @@
-"""deepscale.pool_ensembles: combine per-model ensembles into one predictor cube.
+"""africas2s.pool_ensembles: combine per-model ensembles into one predictor cube.
 
 Lifted from AGU's downscale_frontier.gcm_pooled — a general ensemble-prep step for feeding a
-multi-model ensemble to deepscale.optimize.
+multi-model ensemble to africas2s.optimize.
 """
 import numpy as np
 import pytest
 import xarray as xr
 
-import deepscale
-from deepscale import pool_ensembles
+import africas2s
+from africas2s import pool_ensembles
 
 
 def _model(seed, *, years=range(1993, 2017), members=4, lat=(-4, 0, 4), lon=(34, 38, 42)):
@@ -95,8 +95,8 @@ def test_member_relabeling_does_not_change_optimize_score():
     v1 = pool_ensembles([d.copy() for d in das])
     v2 = xr.concat([d.assign_coords(member=d.member + i * 100) for i, d in enumerate(das)],
                    dim="member")
-    s1 = deepscale.optimize(v1, obs, methods=["cca"], primary_metric="generalized_roc",
+    s1 = africas2s.optimize(v1, obs, methods=["cca"], primary_metric="generalized_roc",
                             verbose=False, progress=False).score
-    s2 = deepscale.optimize(v2, obs, methods=["cca"], primary_metric="generalized_roc",
+    s2 = africas2s.optimize(v2, obs, methods=["cca"], primary_metric="generalized_roc",
                             verbose=False, progress=False).score
     assert s1 == pytest.approx(s2, abs=1e-12)

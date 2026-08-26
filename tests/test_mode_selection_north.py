@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale.methods.cca import (
+from africas2s.methods.cca import (
     CCAMethod,
     _LEVERAGE_CLAMP,
     _north_modes,

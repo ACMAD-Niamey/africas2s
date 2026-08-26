@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from deepscale.aggregations import onset
+from africas2s.aggregations import onset
 
 ACCUM_DAYS = 3
 ACCUM_THRESHOLD = 20
@@ -91,7 +91,7 @@ def test_at_least_some_cells_found_onset_and_some_did_not(random_daily_grid):
 
 def test_threshold_is_inclusive_unlike_the_reference_script():
     """The reference script uses `< 1.0` (line 123); the stated criterion is
-    'at or below 1 mm/day'. deepscale implements the criterion. A cell whose
+    'at or below 1 mm/day'. africas2s implements the criterion. A cell whose
     dry days are all exactly 1.0 mm is a dry spell here and was not there."""
     rain = np.full(120, 5.0)
     rain[0:3] = [1.0, 12.0, 9.0]

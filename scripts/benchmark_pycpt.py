@@ -1,7 +1,7 @@
-"""Side-by-side benchmark: PyCPT (CPT binary + IRI data) vs DeepScale (our CCA + Rosetta).
+"""Side-by-side benchmark: PyCPT (CPT binary + IRI data) vs AfricaS2S (our CCA + Rosetta).
 
 Calls PyCPT step by step, inspects its outputs at every stage, and compares them
-to our implementations in deepscale.methods.cca / deepscale.tercile / deepscale.metrics.rpss.
+to our implementations in africas2s.methods.cca / africas2s.tercile / africas2s.metrics.rpss.
 
 Stages compared:
   1. Input data:  PyCPT (IRI) vs Rosetta (CDS) — grid, values, units
@@ -22,7 +22,7 @@ Last verified results (2026-03-20, SEAS51c East Africa MAM):
 1. PREPROCESSING (confirmed by matching EOF explained variances to 6 dp):
    - Center each column (subtract training mean)
    - Standardize: divide by per-column sample std (ddof=1)
-     DeepScale: CCAMethod(standardize=True)
+     AfricaS2S: CCAMethod(standardize=True)
    - Apply sqrt(cos(lat)) area weighting per gridpoint
    - SVD of weighted+standardized anomaly matrix → EOF loadings + PC scores
    Source: CPT get_pcs() in cca.F95; stdize in settings.F95
@@ -68,16 +68,16 @@ Last verified results (2026-03-20, SEAS51c East Africa MAM):
    P(above) = 1 - StudentT_CDF(t2, dofr)
    P(normal) = 1 - P(below) - P(above)
    Boundaries: full-climatology CPT q_empirical (rndx = n*p + 0.5, distribs.F95 L1007)
-   DeepScale: to_tercile_cv(method="cpt", cpt_boundaries=True)
+   AfricaS2S: to_tercile_cv(method="cpt", cpt_boundaries=True)
 
 8. RPSS SCORING (scores.F95 L2309-2340):
    - Obs categorized against LOO tercile boundaries (year ± hcw excluded)
    - Bounded formula: when rps > rps_clim, RPSS = (rps_clim - rps) / (1 - rps_clim)
    - PyCPT's skill file stores per-gridpoint RPSS (spatial map, in percentage 0-100)
-   DeepScale: RPSSMetric(loo_boundaries=False, bounded=True, spatial=True)
+   AfricaS2S: RPSSMetric(loo_boundaries=False, bounded=True, spatial=True)
    Note: PyCPT's per-gridpoint RPSS uses full-sample boundaries, not LOO.
 
-== KEY DEEPSCALE FLAGS TO MATCH CPT ==
+== KEY AFRICAS2S FLAGS TO MATCH CPT ==
 
   CCAMethod(standardize=True)           # center + divide by std ddof=1
   to_tercile_cv(cpt_boundaries=True)    # CPT q_empirical boundaries
@@ -105,12 +105,12 @@ except ImportError:
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "rosetta" / "src"))
-sys.path.insert(0, str(REPO / "deepscale" / "src"))
+sys.path.insert(0, str(REPO / "africas2s" / "src"))
 
-from deepscale.methods.cca import CCAMethod
-from deepscale.cv import loyo
-from deepscale.tercile import to_tercile_cv
-from deepscale.metrics.rpss import RPSSMetric, _cpt_boundaries
+from africas2s.methods.cca import CCAMethod
+from africas2s.cv import loyo
+from africas2s.tercile import to_tercile_cv
+from africas2s.metrics.rpss import RPSSMetric, _cpt_boundaries
 
 CASE_DIR = Path(__file__).parent / "output" / "benchmark"
 
@@ -151,7 +151,7 @@ def _extract_years(da):
 
 
 def _adapt_pycpt_dims(gcm_iri, obs_iri):
-    """Rename PyCPT dims (T/Y/X) to DeepScale dims (year/lat/lon)."""
+    """Rename PyCPT dims (T/Y/X) to AfricaS2S dims (year/lat/lon)."""
     years = _extract_years(gcm_iri)
     renames = {}
     if "Y" in gcm_iri.dims:
@@ -288,7 +288,7 @@ def step1_data(cpt):
 
 def step2_eofs(cpt):
     print("\n" + "=" * 70)
-    print("STEP 2: EOF Decomposition — CPT vs DeepScale (standardize=True)")
+    print("STEP 2: EOF Decomposition — CPT vs AfricaS2S (standardize=True)")
     print("=" * 70)
 
     gcm_iri = cpt["gcm"]
@@ -299,7 +299,7 @@ def step2_eofs(cpt):
     cpt_x_expvar = xp["x_explained_variance"].values
     print(f"\n  CPT x_explained_var[:5]: {cpt_x_expvar[:5]}")
 
-    # Run DeepScale CCA with standardize=True on PyCPT's data
+    # Run AfricaS2S CCA with standardize=True on PyCPT's data
     # Adapt dims
     gcm, obs, years = _adapt_pycpt_dims(gcm_iri, obs_iri)
 
@@ -351,8 +351,8 @@ def step3_cca(cpt, gcm, obs):
     cpt_det = cpt_det_raw.rename(det_renames)
     cpt_det["year"] = years
 
-    # Run DeepScale LOYO with standardize=True, modes 8/6/3
-    print("\n  Running DeepScale LOYO CV (standardize=True, modes=8/6/3)...")
+    # Run AfricaS2S LOYO with standardize=True, modes 8/6/3
+    print("\n  Running AfricaS2S LOYO CV (standardize=True, modes=8/6/3)...")
     preds, leverages = [], []
     for train_yrs, test_yr in loyo(years, window=CV_WINDOW):
         m = CCAMethod(x_eof_modes=8, y_eof_modes=6, cca_modes=3, standardize=True)
@@ -396,7 +396,7 @@ def step4_tercile(cpt, cv, leverages, obs):
     print(f"\n  PyCPT probabilistic dims: {cpt_prob.dims}, shape: {cpt_prob.shape}")
     print(f"  NOTE: PyCPT's probabilistic field is IN-SAMPLE (not CV)")
 
-    # Method A: DeepScale CV tercile (using library with cpt_boundaries=True)
+    # Method A: AfricaS2S CV tercile (using library with cpt_boundaries=True)
     ds_terc_cv = to_tercile_cv(cv, obs, method="cpt", leverages=leverages,
                                n_modes=8, cpt_boundaries=True)
 
@@ -484,7 +484,7 @@ def step5_rpss(cpt, ds_terc_cv, terc_insample, cpt_p, obs):
     rpss_cv = RPSSMetric().compute(ds_terc_cv, obs, spatial=True,
                                    loo_boundaries=False, bounded=True)
     cv_valid = rpss_cv.values[~np.isnan(rpss_cv.values)]
-    print(f"  DeepScale CV RPSS:       {cv_valid.mean()*100:+.4f}%")
+    print(f"  AfricaS2S CV RPSS:       {cv_valid.mean()*100:+.4f}%")
 
     # Our RPSS from in-sample tercile reproduction
     terc_da = xr.DataArray(terc_insample, dims=["year", "tercile", "lat", "lon"],
@@ -492,7 +492,7 @@ def step5_rpss(cpt, ds_terc_cv, terc_insample, cpt_p, obs):
     rpss_is = RPSSMetric().compute(terc_da, obs, spatial=True,
                                    loo_boundaries=False, bounded=True)
     is_valid = rpss_is.values[~np.isnan(rpss_is.values)]
-    print(f"  DeepScale in-sample RPSS: {is_valid.mean()*100:+.4f}%")
+    print(f"  AfricaS2S in-sample RPSS: {is_valid.mean()*100:+.4f}%")
 
     # Per-gridpoint comparison
     if "Y" in cpt_rpss.dims:
@@ -513,7 +513,7 @@ def step5_rpss(cpt, ds_terc_cv, terc_insample, cpt_p, obs):
 
 def main():
     print("=" * 70)
-    print("BENCHMARK: PyCPT (CPT binary + IRI) vs DeepScale")
+    print("BENCHMARK: PyCPT (CPT binary + IRI) vs AfricaS2S")
     print("=" * 70)
 
     # Step 0: Run PyCPT

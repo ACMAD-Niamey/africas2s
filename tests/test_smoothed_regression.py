@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale.methods.smoothed_regression import (
+from africas2s.methods.smoothed_regression import (
     seasonal_coefficients, _smooth_seasonal_coefficients,
 )
 

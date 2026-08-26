@@ -3,9 +3,9 @@ import xarray as xr
 
 import pytest
 
-from deepscale.methods.chelsa import CHELSAMethod, chelsa_precipitation, wind_effect
-from deepscale.registry import get_method
-from deepscale import downscale
+from africas2s.methods.chelsa import CHELSAMethod, chelsa_precipitation, wind_effect
+from africas2s.registry import get_method
+from africas2s import downscale
 
 
 def _field(values, lat=None, lon=None):
@@ -68,7 +68,7 @@ def test_published_pbl_equation_and_default_offset(monkeypatch):
     pbl = xr.zeros_like(fine)
     coarse_orog = xr.zeros_like(fine)
     monkeypatch.setattr(
-        "deepscale.methods.chelsa.wind_effect",
+        "africas2s.methods.chelsa.wind_effect",
         lambda elevation, u, v, **kwargs: xr.ones_like(elevation),
     )
     actual = chelsa_precipitation(

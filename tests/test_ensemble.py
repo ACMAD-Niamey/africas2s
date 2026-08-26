@@ -8,7 +8,7 @@ import xarray as xr
 # ===================================================================
 
 def test_uniform_ensemble():
-    from deepscale.ensemble import ensemble
+    from africas2s.ensemble import ensemble
     lat = np.linspace(-1, 1, 5)
     lon = np.linspace(0, 1, 5)
     a = xr.DataArray(np.ones((3, 5, 5)) * 2, dims=["member", "lat", "lon"],
@@ -22,7 +22,7 @@ def test_uniform_ensemble():
 
 
 def test_ensemble_single_model():
-    from deepscale.ensemble import ensemble
+    from africas2s.ensemble import ensemble
     lat = np.linspace(-1, 1, 5)
     lon = np.linspace(0, 1, 5)
     a = xr.DataArray(np.ones((3, 5, 5)) * 7, dims=["member", "lat", "lon"],
@@ -32,7 +32,7 @@ def test_ensemble_single_model():
 
 
 def test_ensemble_output_shape():
-    from deepscale.ensemble import ensemble
+    from africas2s.ensemble import ensemble
     lat = np.linspace(-1, 1, 5)
     lon = np.linspace(0, 1, 5)
     a = xr.DataArray(np.ones((3, 5, 5)), dims=["member", "lat", "lon"],
@@ -57,7 +57,7 @@ def _make_member(value, lat, lon):
 
 
 def test_drop_worst_drops_lowest_score_member():
-    from deepscale.ensemble import ensemble
+    from africas2s.ensemble import ensemble
     lat = np.linspace(-1, 1, 4); lon = np.linspace(0, 1, 4)
     a = _make_member(1.0, lat, lon)
     b = _make_member(5.0, lat, lon)
@@ -69,7 +69,7 @@ def test_drop_worst_drops_lowest_score_member():
 
 
 def test_drop_worst_n_drop_kwarg():
-    from deepscale.ensemble import ensemble
+    from africas2s.ensemble import ensemble
     lat = np.linspace(-1, 1, 4); lon = np.linspace(0, 1, 4)
     forecasts = [_make_member(v, lat, lon) for v in [1.0, 2.0, 3.0, 10.0]]
     # Drop bottom 2 (scores 0.0, 0.1) → mean of values 3.0 and 10.0 = 6.5
@@ -79,8 +79,8 @@ def test_drop_worst_n_drop_kwarg():
 
 
 def test_drop_worst_uses_optimize_result_score():
-    from deepscale.ensemble import ensemble
-    from deepscale.optimize import OptimizeResult
+    from africas2s.ensemble import ensemble
+    from africas2s.optimize import OptimizeResult
     lat = np.linspace(-1, 1, 4); lon = np.linspace(0, 1, 4)
     forecasts = [
         OptimizeResult(method="cca", score=-0.2, forecast=_make_member(1.0, lat, lon)),
@@ -92,8 +92,8 @@ def test_drop_worst_uses_optimize_result_score():
 
 
 def test_drop_worst_explicit_scores_override_optimize_result():
-    from deepscale.ensemble import ensemble
-    from deepscale.optimize import OptimizeResult
+    from africas2s.ensemble import ensemble
+    from africas2s.optimize import OptimizeResult
     lat = np.linspace(-1, 1, 4); lon = np.linspace(0, 1, 4)
     # OptimizeResult scores would suggest dropping the first; explicit override
     # flips it so the last is dropped instead.
@@ -109,7 +109,7 @@ def test_drop_worst_explicit_scores_override_optimize_result():
 
 def test_drop_worst_errors_without_scores():
     """Plain DataArrays with no scores and no kwarg cannot be ranked."""
-    from deepscale.ensemble import ensemble
+    from africas2s.ensemble import ensemble
     lat = np.linspace(-1, 1, 4); lon = np.linspace(0, 1, 4)
     forecasts = [_make_member(v, lat, lon) for v in [1.0, 5.0, 9.0]]
     with pytest.raises(ValueError, match="score"):
@@ -117,7 +117,7 @@ def test_drop_worst_errors_without_scores():
 
 
 def test_drop_worst_n_drop_too_large():
-    from deepscale.ensemble import ensemble
+    from africas2s.ensemble import ensemble
     lat = np.linspace(-1, 1, 4); lon = np.linspace(0, 1, 4)
     forecasts = [_make_member(v, lat, lon) for v in [1.0, 5.0]]
     with pytest.raises(ValueError, match="n_drop"):
@@ -127,7 +127,7 @@ def test_drop_worst_n_drop_too_large():
 
 def test_skill_weighted_positive_scores():
     """Weights ∝ scores, normalized to sum to 1."""
-    from deepscale.ensemble import ensemble
+    from africas2s.ensemble import ensemble
     lat = np.linspace(-1, 1, 4); lon = np.linspace(0, 1, 4)
     a = _make_member(2.0, lat, lon)
     b = _make_member(4.0, lat, lon)
@@ -139,7 +139,7 @@ def test_skill_weighted_positive_scores():
 
 def test_skill_weighted_negative_scores_get_zero_weight():
     """Members with non-positive skill score should not contribute."""
-    from deepscale.ensemble import ensemble
+    from africas2s.ensemble import ensemble
     lat = np.linspace(-1, 1, 4); lon = np.linspace(0, 1, 4)
     a = _make_member(2.0, lat, lon)  # bad
     b = _make_member(4.0, lat, lon)  # good
@@ -152,7 +152,7 @@ def test_skill_weighted_negative_scores_get_zero_weight():
 
 def test_skill_weighted_all_nonpositive_falls_back_to_uniform():
     """If every member has score ≤ 0, return the uniform mean rather than divide-by-zero."""
-    from deepscale.ensemble import ensemble
+    from africas2s.ensemble import ensemble
     lat = np.linspace(-1, 1, 4); lon = np.linspace(0, 1, 4)
     a = _make_member(2.0, lat, lon)
     b = _make_member(4.0, lat, lon)
@@ -163,7 +163,7 @@ def test_skill_weighted_all_nonpositive_falls_back_to_uniform():
 
 def test_skill_weighted_explicit_weights_kwarg():
     """`weights=` kwarg bypasses score-based computation."""
-    from deepscale.ensemble import ensemble
+    from africas2s.ensemble import ensemble
     lat = np.linspace(-1, 1, 4); lon = np.linspace(0, 1, 4)
     a = _make_member(2.0, lat, lon)
     b = _make_member(8.0, lat, lon)
@@ -174,8 +174,8 @@ def test_skill_weighted_explicit_weights_kwarg():
 
 
 def test_skill_weighted_uses_optimize_result_score():
-    from deepscale.ensemble import ensemble
-    from deepscale.optimize import OptimizeResult
+    from africas2s.ensemble import ensemble
+    from africas2s.optimize import OptimizeResult
     lat = np.linspace(-1, 1, 4); lon = np.linspace(0, 1, 4)
     forecasts = [
         OptimizeResult(method="cca", score=0.2, forecast=_make_member(2.0, lat, lon)),
@@ -218,7 +218,7 @@ def _bma_synthetic_setup(seed=0):
 
 def test_bma_weights_concentrate_on_skillful_member():
     """BMA should put most weight on the member whose hindcast tracks obs."""
-    from deepscale.strategies.bma import BMAStrategy
+    from africas2s.strategies.bma import BMAStrategy
     forecasts, obs, hindcasts = _bma_synthetic_setup(seed=0)
     s = BMAStrategy()
     weights, _sigma2 = s._fit_em(hindcasts, obs)
@@ -229,8 +229,8 @@ def test_bma_weights_concentrate_on_skillful_member():
 
 def test_bma_combine_uses_fitted_weights():
     """Combined forecast equals weighted sum using the fitted BMA weights."""
-    from deepscale.ensemble import ensemble
-    from deepscale.strategies.bma import BMAStrategy
+    from africas2s.ensemble import ensemble
+    from africas2s.strategies.bma import BMAStrategy
     forecasts, obs, hindcasts = _bma_synthetic_setup(seed=0)
     out = ensemble(forecasts, obs, strategy="bma", hindcasts=hindcasts)
     # Fit independently to compare
@@ -240,7 +240,7 @@ def test_bma_combine_uses_fitted_weights():
 
 
 def test_bma_requires_hindcasts():
-    from deepscale.ensemble import ensemble
+    from africas2s.ensemble import ensemble
     forecasts, obs, _ = _bma_synthetic_setup(seed=0)
     with pytest.raises(ValueError, match="hindcasts"):
         ensemble(forecasts, obs, strategy="bma")
@@ -248,7 +248,7 @@ def test_bma_requires_hindcasts():
 
 def test_bma_weights_sum_to_one():
     """Even on degenerate cases, BMA weights should always normalize."""
-    from deepscale.strategies.bma import BMAStrategy
+    from africas2s.strategies.bma import BMAStrategy
     rng = np.random.default_rng(42)
     n_years = 8
     years = np.arange(2000, 2000 + n_years)
@@ -268,7 +268,7 @@ def test_bma_weights_sum_to_one():
 
 def test_apply_shrinkage_blend():
     """w_shrunk = (1 - λ) * w + λ / N. λ=0 returns w; λ=1 returns uniform."""
-    from deepscale.ensemble import _apply_shrinkage
+    from africas2s.ensemble import _apply_shrinkage
 
     w = np.array([0.8, 0.2])
     np.testing.assert_allclose(_apply_shrinkage(w, 0.0), w)
@@ -278,7 +278,7 @@ def test_apply_shrinkage_blend():
 
 def test_effective_n_degenerate():
     """effective_N = 1 / sum(w**2). Uniform → N; (0.95, 0.05, 0, 0, 0) → ~1.11."""
-    from deepscale.ensemble import _effective_n
+    from africas2s.ensemble import _effective_n
 
     n = 5
     uniform = np.full(n, 1.0 / n)
@@ -290,7 +290,7 @@ def test_effective_n_degenerate():
 
 def test_strategy_fit_uniform():
     """uniform.fit returns 1/N for any input."""
-    from deepscale.registry import get_strategy
+    from africas2s.registry import get_strategy
 
     n_year, n_lat, n_lon = 5, 3, 3
     coords = {"year": np.arange(n_year), "lat": np.arange(n_lat), "lon": np.arange(n_lon)}
@@ -310,8 +310,8 @@ def test_strategy_fit_drop_worst_indicator():
     we rank synthetically by hand-constructing one member to be much
     closer to obs than the others.
     """
-    from deepscale.registry import get_strategy
-    from deepscale.tercile import to_tercile_cv
+    from africas2s.registry import get_strategy
+    from africas2s.tercile import to_tercile_cv
 
     np.random.seed(0)
     n_year, n_lat, n_lon = 12, 3, 3
@@ -336,8 +336,8 @@ def test_strategy_fit_drop_worst_indicator():
 
 def test_strategy_fit_skill_weighted_clipped():
     """skill_weighted.fit clips negative skill to 0 and normalises."""
-    from deepscale.registry import get_strategy
-    from deepscale.tercile import to_tercile_cv
+    from africas2s.registry import get_strategy
+    from africas2s.tercile import to_tercile_cv
 
     np.random.seed(0)
     n_year, n_lat, n_lon = 12, 3, 3
@@ -358,7 +358,7 @@ def test_strategy_fit_skill_weighted_clipped():
 
 def test_strategy_self_shrinks_flags():
     """Only bma reports self_shrinks() == True."""
-    from deepscale.registry import get_strategy
+    from africas2s.registry import get_strategy
 
     assert get_strategy("uniform")().self_shrinks() is False
     assert get_strategy("drop_worst")().self_shrinks() is False
@@ -370,7 +370,7 @@ def test_strategy_uniform_combine_with_weights():
     """uniform.combine respects an explicit weights= kwarg (used by the
     nested-CV loop to apply a non-uniform vector through the same code path).
     """
-    from deepscale.registry import get_strategy
+    from africas2s.registry import get_strategy
 
     coords = {"lat": [0], "lon": [0]}
     a = xr.DataArray([[1.0]], dims=["lat", "lon"], coords=coords)
@@ -382,7 +382,7 @@ def test_strategy_uniform_combine_with_weights():
 def test_strategy_drop_worst_combine_with_weights():
     """drop_worst.combine respects an explicit weights= kwarg (skipping its
     own ranking logic)."""
-    from deepscale.registry import get_strategy
+    from africas2s.registry import get_strategy
 
     coords = {"lat": [0], "lon": [0]}
     arrs = [
@@ -398,7 +398,7 @@ def test_strategy_drop_worst_combine_with_weights():
 def test_ensemble_no_optimize_returns_trivial_ensemble_result():
     """ensemble(..., optimize_ensemble=False) wraps the strategy's combine()
     in an EnsembleResult with the trivial-safeguard fields."""
-    from deepscale.ensemble import ensemble, EnsembleResult
+    from africas2s.ensemble import ensemble, EnsembleResult
 
     coords = {"lat": [0], "lon": [0]}
     a = xr.DataArray([[2.0]], dims=["lat", "lon"], coords=coords, name="A")
@@ -418,14 +418,14 @@ def test_ensemble_no_optimize_returns_trivial_ensemble_result():
 
 def test_ensemble_optimize_self_shrinking_strategy_skips_shrinkage():
     """A self_shrinks() strategy must not get outer-loop shrinkage on top."""
-    from deepscale.ensemble import ensemble
-    from deepscale.strategies.base import StrategyBase
-    from deepscale.registry import register_strategy
+    from africas2s.ensemble import ensemble
+    from africas2s.strategies.base import StrategyBase
+    from africas2s.registry import register_strategy
 
     @register_strategy("test_self_shrinking")
     class _SS(StrategyBase):
         def combine(self, forecasts, obs=None, *, weights=None, **kwargs):
-            from deepscale.strategies.uniform import _as_array
+            from africas2s.strategies.uniform import _as_array
             arrays = [_as_array(f) for f in forecasts]
             if weights is None:
                 return sum(arrays) / len(arrays)
@@ -461,14 +461,14 @@ def test_ensemble_optimize_self_shrinking_strategy_skips_shrinkage():
 def test_ensemble_optimize_effective_n_floor_fallback():
     """A strategy whose fit returns a degenerate weight vector triggers the
     floor and falls back to uniform per-fold."""
-    from deepscale.ensemble import ensemble
-    from deepscale.strategies.base import StrategyBase
-    from deepscale.registry import register_strategy
+    from africas2s.ensemble import ensemble
+    from africas2s.strategies.base import StrategyBase
+    from africas2s.registry import register_strategy
 
     @register_strategy("test_degenerate")
     class _Deg(StrategyBase):
         def combine(self, forecasts, obs=None, *, weights=None, **kwargs):
-            from deepscale.strategies.uniform import _as_array
+            from africas2s.strategies.uniform import _as_array
             arrays = [_as_array(f) for f in forecasts]
             if weights is None:
                 return sum(arrays) / len(arrays)
@@ -514,7 +514,7 @@ def test_ensemble_optimize_recovers_known_better_member():
     default floor of 3 would force a uniform fallback regardless of recovery
     quality — testing that here would just be testing the floor, not recovery.
     """
-    from deepscale.ensemble import ensemble
+    from africas2s.ensemble import ensemble
 
     np.random.seed(2)
     n_year, n_lat, n_lon = 12, 3, 3
@@ -549,7 +549,7 @@ def test_ensemble_optimize_all_equal_members_returns_uniform():
     accepts with margin 0). Either way, the result is uniform — that's the
     safeguard's intent.
     """
-    from deepscale.ensemble import ensemble
+    from africas2s.ensemble import ensemble
 
     np.random.seed(3)
     n_year, n_lat, n_lon = 8, 2, 2
@@ -573,14 +573,14 @@ def test_ensemble_optimize_gate_fails_with_perverse_strategy():
     single noise member) makes the optimised outer-CV worse than uniform,
     forcing the gate to fail → uniform fallback + RuntimeWarning."""
     import warnings as _warnings
-    from deepscale.ensemble import ensemble
-    from deepscale.strategies.base import StrategyBase
-    from deepscale.registry import register_strategy
+    from africas2s.ensemble import ensemble
+    from africas2s.strategies.base import StrategyBase
+    from africas2s.registry import register_strategy
 
     @register_strategy("test_winner_take_all")
     class _WTA(StrategyBase):
         def combine(self, forecasts, obs=None, *, weights=None, **kwargs):
-            from deepscale.strategies.uniform import _as_array
+            from africas2s.strategies.uniform import _as_array
             arrays = [_as_array(f) for f in forecasts]
             if weights is None:
                 return sum(arrays) / len(arrays)
@@ -637,7 +637,7 @@ def test_ensemble_empty_forecasts_raises_clear_error():
     """An empty forecasts list used to crash with `ZeroDivisionError`
     deep inside `uniform.combine` (sum/len of an empty list). Now raises
     a clear `ValueError` at the entry."""
-    from deepscale.ensemble import ensemble
+    from africas2s.ensemble import ensemble
     obs = xr.DataArray(
         np.random.randn(5, 3, 3),
         dims=["year", "lat", "lon"],
@@ -652,7 +652,7 @@ def test_resolve_safeguards_rejects_negative_min_effective_n():
     `_effective_n(w)` is always >= 1, so any negative threshold made
     the `< min_effective_n` check unreachable. Now validated at resolve time.
     """
-    from deepscale.ensemble import _resolve_safeguards
+    from africas2s.ensemble import _resolve_safeguards
     with pytest.raises(ValueError, match="min_effective_n"):
         _resolve_safeguards({"min_effective_n": -5})
 
@@ -660,7 +660,7 @@ def test_resolve_safeguards_rejects_negative_min_effective_n():
 def test_ensemble_leaky_pipeline_overstates_skill():
     """Without nested CV, in-sample skill is optimistic. The diagnostics
     should still record the outer-CV scores so users can compare."""
-    from deepscale.ensemble import ensemble
+    from africas2s.ensemble import ensemble
 
     np.random.seed(4)
     n_year, n_lat, n_lon = 10, 2, 2

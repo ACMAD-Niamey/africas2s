@@ -37,7 +37,7 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install deepscale (no extras)
+      - name: Install africas2s (no extras)
         run: uv sync
 
       - name: Build (country, issuance) matrix
@@ -84,7 +84,7 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install deepscale + rosetta
+      - name: Install africas2s + rosetta
         run: |
           uv sync
           uv pip install -e ./rosetta
@@ -179,7 +179,7 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install deepscale + rosetta
+      - name: Install africas2s + rosetta
         run: |
           uv sync
           uv pip install -e ./rosetta
@@ -273,7 +273,7 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install deepscale + rosetta
+      - name: Install africas2s + rosetta
         run: |
           uv sync
           uv pip install -e ./rosetta

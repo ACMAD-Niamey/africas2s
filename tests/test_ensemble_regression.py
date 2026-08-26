@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale.methods.ensemble_regression import EnsembleRegressionMethod
+from africas2s.methods.ensemble_regression import EnsembleRegressionMethod
 
 
 def _synthetic(slope=2.0, intercept=5.0, n_years=25, n_mem=6, n_lat=3, n_lon=4,

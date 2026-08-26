@@ -9,7 +9,7 @@
 # bbox
 #     Geographic extent of the country, in decimal degrees. Required keys:
 #     west, east, south, north. Passed verbatim to rosetta.fetch() and used
-#     by deepscale to clip the predictand grid.
+#     by africas2s to clip the predictand grid.
 #
 # models
 #     List of GCM hindcast/forecast products used as predictors in the MME.
@@ -48,7 +48,7 @@
 #     availability, so the realized period may be narrower.
 #
 # cv
-#     Cross-validation scheme name. See src/deepscale/cv.py.
+#     Cross-validation scheme name. See src/africas2s/cv.py.
 #     Available:
 #       loyo      — leave-one-year-out (optional `window>1` drops
 #                   neighbours to break short-range autocorrelation)
@@ -61,7 +61,7 @@
 #
 # method
 #     Statistical downscaling / calibration method. Registered in
-#     src/deepscale/methods/. Must be deterministic — seasonal_mme V1
+#     src/africas2s/methods/. Must be deterministic — seasonal_mme V1
 #     rejects probabilistic methods (`corrdiff` raises
 #     NotImplementedError).
 #     Available: cca, bcsd.

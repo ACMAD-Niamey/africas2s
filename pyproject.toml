@@ -1,6 +1,6 @@
 [project]
-name = "accord-deepscale"
-version = "0.1.16"
+name = "africas2s"
+version = "0.2.0"
 description = "Modular downscaling, calibration, and ensemble framework for seasonal climate forecasts"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,13 +28,13 @@ dependencies = [
     "matplotlib>=3.7",
     "cartopy>=0.22",
     "rioxarray",
-    # deepscale.load_terrain downloads GLO-90 DEM tiles with plain HTTP.
+    # africas2s.load_terrain downloads GLO-90 DEM tiles with plain HTTP.
     "requests",
 ]
 
 [project.urls]
-Homepage = "https://github.com/accord-research/deepscale"
-Repository = "https://github.com/accord-research/deepscale"
+Homepage = "https://github.com/ACMAD-Niamey/africas2s"
+Repository = "https://github.com/ACMAD-Niamey/africas2s"
 
 [project.optional-dependencies]
 plot = ["matplotlib"]
@@ -50,7 +50,7 @@ validation = [
     "xsdba",
 ]
 # GPU dependencies for CorrDiff (torch, earth2studio, physicsnemo) are not on
-# PyPI and must be installed manually.  See src/deepscale/methods/corrdiff.py
+# PyPI and must be installed manually.  See src/africas2s/methods/corrdiff.py
 # for instructions.
 
 [tool.uv]
@@ -59,7 +59,7 @@ validation = [
 # rosetta's core deps are mutually unsatisfiable out of the box: sheerwater
 # hard-pins zarr==2.18.3 while icechunk>=2 needs zarr>=3.1.0. rosetta carries
 # its own [tool.uv] override for this, but `uv pip install` reads overrides
-# from the project in the working directory (deepscale), not from the package
+# from the project in the working directory (africas2s), not from the package
 # being installed, so we must repeat it here. sheerwater's zarr pin is stale
 # (it reads through xarray's zarr backend and works under zarr 3), so forcing
 # zarr>=3.1.0 is safe.
@@ -70,23 +70,23 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/deepscale"]
+packages = ["src/africas2s"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
     "integration: requires real data",
-    "agreement: DeepScale vs PyCPT reference agreement tests",
+    "agreement: AfricaS2S vs PyCPT reference agreement tests",
     "gpu: requires NVIDIA GPU and earth2studio",
 ]
 
 # Coverage is opt-in (not in addopts) so a bare `pytest` works without
-# pytest-cov installed. To check the §9 gate (>85% on src/deepscale, unit
+# pytest-cov installed. To check the §9 gate (>85% on src/africas2s, unit
 # suite < 30s):
 #   pytest -m "not integration and not gpu" \
-#       --cov=deepscale --cov-report=term-missing
+#       --cov=africas2s --cov-report=term-missing
 [tool.coverage.run]
-source = ["src/deepscale"]
+source = ["src/africas2s"]
 omit = [
     # ML tiers not yet implemented (§13–§17); excluded so their empty modules
     # don't drag the Part-A coverage number down.

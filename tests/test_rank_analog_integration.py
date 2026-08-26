@@ -1,6 +1,6 @@
 """Integration test for the rank-analog downscaling method.
 
-Exercises the full `deepscale.downscale(method="rank-analog", ...)` API
+Exercises the full `africas2s.downscale(method="rank-analog", ...)` API
 against synthetic GCM hindcast + obs data, asserting end-to-end behavior
 that the unit tests in test_methods.py don't cover individually:
 
@@ -14,13 +14,13 @@ that the unit tests in test_methods.py don't cover individually:
 import numpy as np
 import pytest
 
-import deepscale
+import africas2s
 
 
 def test_downscale_rank_analog_end_to_end(synthetic_gcm_hindcast, synthetic_obs):
     """downscale() with method='rank-analog' returns an obs-grid forecast
     derived by ranking the last hindcast year against the rest."""
-    result = deepscale.downscale(
+    result = africas2s.downscale(
         predictor_hindcast=synthetic_gcm_hindcast,
         obs=synthetic_obs,
         method="rank-analog",
@@ -35,7 +35,7 @@ def test_downscale_rank_analog_end_to_end(synthetic_gcm_hindcast, synthetic_obs)
 def test_downscale_rank_analog_values_in_obs_range(synthetic_gcm_hindcast, synthetic_obs):
     """Rank-analog output cannot exceed the observed climatology — values
     are looked up from obs_sorted, so the range is bounded by obs."""
-    result = deepscale.downscale(
+    result = africas2s.downscale(
         predictor_hindcast=synthetic_gcm_hindcast,
         obs=synthetic_obs,
         method="rank-analog",
@@ -53,7 +53,7 @@ def test_downscale_rank_analog_with_explicit_forecast(
 ):
     """Passing an explicit forecast (the Plan 4 calling pattern) bypasses
     the trailing-year auto-extraction and uses the full hindcast for fit."""
-    result = deepscale.downscale(
+    result = africas2s.downscale(
         predictor_hindcast=synthetic_gcm_hindcast,
         obs=synthetic_obs,
         forecast=synthetic_gcm_forecast,
@@ -71,14 +71,14 @@ def test_downscale_rank_analog_vs_bcsd_produce_different_output(
     """A sanity check that rank-analog is doing something distinct from
     BCSD on the same input (so we know we have two real methods on the
     method-comparison panel, not one method aliased twice)."""
-    rank_result = deepscale.downscale(
+    rank_result = africas2s.downscale(
         predictor_hindcast=synthetic_gcm_hindcast,
         obs=synthetic_obs,
         method="rank-analog",
         output_type="continuous",
         verbose=False,
     )
-    bcsd_result = deepscale.downscale(
+    bcsd_result = africas2s.downscale(
         predictor_hindcast=synthetic_gcm_hindcast,
         obs=synthetic_obs,
         method="bcsd",

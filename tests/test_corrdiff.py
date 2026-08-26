@@ -145,13 +145,13 @@ def _mock_earth2studio():
 
 def test_corrdiff_registered():
     """corrdiff should always be in the registry (even without torch)."""
-    from deepscale.registry import get_method
+    from africas2s.registry import get_method
     cls = get_method("corrdiff")
     assert cls.__name__ == "CorrDiffMethod"
 
 
 def test_is_pretrained_flag():
-    from deepscale.methods.corrdiff import CorrDiffMethod
+    from africas2s.methods.corrdiff import CorrDiffMethod
     assert CorrDiffMethod.is_pretrained is True
 
 
@@ -162,7 +162,7 @@ def test_corrdiff_save_load_raise_not_implemented():
     override raises before touching any model state, so this needs no deps
     and runs even on machines without torch.
     """
-    from deepscale.methods.corrdiff import CorrDiffMethod
+    from africas2s.methods.corrdiff import CorrDiffMethod
     m = object.__new__(CorrDiffMethod)
     with pytest.raises(NotImplementedError, match="#27/#28"):
         m.save("ignored.pkl")
@@ -173,18 +173,18 @@ def test_corrdiff_save_load_raise_not_implemented():
 def test_import_error_without_torch(monkeypatch):
     """Instantiation should give a clear error when torch is missing."""
     monkeypatch.setattr(
-        "deepscale.methods.corrdiff.require_optional",
+        "africas2s.methods.corrdiff.require_optional",
         lambda name, **kw: (_ for _ in ()).throw(
             ImportError(f"{name} is required. pip install torch")
         ),
     )
-    from deepscale.methods.corrdiff import CorrDiffMethod
+    from africas2s.methods.corrdiff import CorrDiffMethod
     with pytest.raises(ImportError, match="torch"):
         CorrDiffMethod()
 
 
 def test_parse_variable_name():
-    from deepscale.methods.corrdiff import parse_variable_name
+    from africas2s.methods.corrdiff import parse_variable_name
     assert parse_variable_name("ua850") == ("ua", 850)
     assert parse_variable_name("ta10") == ("ta", 10)
     assert parse_variable_name("hus1000") == ("hus", 1000)
@@ -202,7 +202,7 @@ def test_parse_variable_name():
 
 def test_fit_stores_obs_metadata(_mock_earth2studio):
     torch = pytest.importorskip("torch")
-    from deepscale.methods.corrdiff import CorrDiffMethod
+    from africas2s.methods.corrdiff import CorrDiffMethod
 
     m = CorrDiffMethod(device="cpu")
     m.fit(_make_hindcast(), _make_obs())
@@ -216,7 +216,7 @@ def test_fit_stores_obs_metadata(_mock_earth2studio):
 def test_predict_output_shape(_mock_earth2studio):
     """predict() should return (member, lat, lon) at the obs grid."""
     torch = pytest.importorskip("torch")
-    from deepscale.methods.corrdiff import CorrDiffMethod
+    from africas2s.methods.corrdiff import CorrDiffMethod
 
     m = CorrDiffMethod(device="cpu", n_samples=5, target_variable="t2m")
     m.fit(_make_hindcast(), _make_obs())
@@ -248,7 +248,7 @@ def test_predict_output_shape(_mock_earth2studio):
 
 def test_predict_requires_corrdiff_input(_mock_earth2studio):
     torch = pytest.importorskip("torch")
-    from deepscale.methods.corrdiff import CorrDiffMethod
+    from africas2s.methods.corrdiff import CorrDiffMethod
 
     m = CorrDiffMethod(device="cpu")
     m.fit(_make_hindcast(), _make_obs())
@@ -259,7 +259,7 @@ def test_predict_requires_corrdiff_input(_mock_earth2studio):
 
 def test_predict_n_samples_override(_mock_earth2studio):
     torch = pytest.importorskip("torch")
-    from deepscale.methods.corrdiff import CorrDiffMethod
+    from africas2s.methods.corrdiff import CorrDiffMethod
 
     m = CorrDiffMethod(device="cpu", n_samples=3)
     m.fit(_make_hindcast(), _make_obs())
@@ -286,7 +286,7 @@ def test_predict_n_samples_override(_mock_earth2studio):
 
 def test_model_property_loads_lazily(_mock_earth2studio):
     torch = pytest.importorskip("torch")
-    from deepscale.methods.corrdiff import CorrDiffMethod
+    from africas2s.methods.corrdiff import CorrDiffMethod
 
     m = CorrDiffMethod(device="cpu")
     assert m._model is None
@@ -301,7 +301,7 @@ def test_model_property_loads_lazily(_mock_earth2studio):
 def test_prepare_input_from_split_dataset(_mock_earth2studio):
     """Test prepare_corrdiff_input with pre-split variables."""
     torch = pytest.importorskip("torch")
-    from deepscale.methods.corrdiff import prepare_corrdiff_input, CorrDiffMethod
+    from africas2s.methods.corrdiff import prepare_corrdiff_input, CorrDiffMethod
     import pandas as pd
 
     m = CorrDiffMethod(device="cpu")
@@ -333,7 +333,7 @@ def test_prepare_input_from_split_dataset(_mock_earth2studio):
 def test_prepare_input_from_plev_dataset(_mock_earth2studio):
     """Test prepare_corrdiff_input with base variables + plev dim."""
     torch = pytest.importorskip("torch")
-    from deepscale.methods.corrdiff import prepare_corrdiff_input, CorrDiffMethod
+    from africas2s.methods.corrdiff import prepare_corrdiff_input, CorrDiffMethod
     import pandas as pd
 
     m = CorrDiffMethod(device="cpu")
@@ -353,7 +353,7 @@ def test_prepare_input_from_plev_dataset(_mock_earth2studio):
             coords={"time": times, "plev": plevs, "lat": lat, "lon": lon},
         )
     # Add all surface variables directly
-    from deepscale.methods.corrdiff import parse_variable_name
+    from africas2s.methods.corrdiff import parse_variable_name
     for var_name in model.input_variables:
         _, plev = parse_variable_name(var_name)
         if plev is None and var_name not in data_vars:
@@ -373,7 +373,7 @@ def test_prepare_input_from_plev_dataset(_mock_earth2studio):
 def test_prepare_input_missing_variable(_mock_earth2studio):
     """Should raise KeyError for missing variables."""
     torch = pytest.importorskip("torch")
-    from deepscale.methods.corrdiff import prepare_corrdiff_input, CorrDiffMethod
+    from africas2s.methods.corrdiff import prepare_corrdiff_input, CorrDiffMethod
 
     m = CorrDiffMethod(device="cpu")
     model = m.model

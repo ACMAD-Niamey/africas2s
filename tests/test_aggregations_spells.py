@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from deepscale.aggregations import dry_spell
+from africas2s.aggregations import dry_spell
 
 
 def _daily(values, start="2015-03-01"):

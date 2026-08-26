@@ -10,7 +10,7 @@ This script:
 Prerequisites:
   - NVIDIA GPU with >= 20 GB VRAM (RTX 4090, A100, etc.)
   - torch, earth2studio, nvidia-physicsnemo installed
-  - deepscale installed (pip install -e .)
+  - africas2s installed (pip install -e .)
 
 Run from the repository root:
   uv run python examples/demo_corrdiff.py
@@ -27,8 +27,8 @@ from pathlib import Path
 
 import numpy as np
 import xarray as xr
-import deepscale as ds
-from deepscale.methods.corrdiff import CorrDiffMethod, _to_numpy
+import africas2s as ds
+from africas2s.methods.corrdiff import CorrDiffMethod, _to_numpy
 
 OUTPUT_DIR = Path(__file__).resolve().parent / "output"
 

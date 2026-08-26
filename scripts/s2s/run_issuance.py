@@ -5,7 +5,7 @@ Given a country + issuance date, this script:
   2. fetches the CHIRPS dekadal climatology for the climatology window
   3. iterates over the target dekads covered by the issuance
   4. per dekad, aggregates forecast/reforecast to a dekadal mean, then per
-     method in the country's allowlist runs deepscale.downscale(),
+     method in the country's allowlist runs africas2s.downscale(),
      computes tercile probabilities from the ensemble, and writes an
      xr.Dataset to the issuance store
 
@@ -30,7 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT.parent / "rosetta" / "src"))
 
-import deepscale  # noqa: E402
+import africas2s  # noqa: E402
 
 from scripts.s2s.config import S2SConfig, load_config  # noqa: E402
 from scripts.s2s.dekads import dekad_window, dekads_for_issuance  # noqa: E402
@@ -214,7 +214,7 @@ def run_issuance(*, country: str, issuance: date, config_path: Path | str) -> No
                 write_issuance(cfg.store_root, country, issuance, method_name, target, ds)
                 continue
 
-            # All other methods go through deepscale.downscale with
+            # All other methods go through africas2s.downscale with
             # hindcast=reforecast. BCSD/CCA/rank-analog need the reforecast
             # for training; skip them when it wasn't available.
             if refc_dekad is None:
@@ -237,7 +237,7 @@ def run_issuance(*, country: str, issuance: date, config_path: Path | str) -> No
             paired_refc = refc_dekad.sel(year=common_years)
             paired_obs = obs_dekad.sel(year=common_years)
 
-            result = deepscale.downscale(
+            result = africas2s.downscale(
                 predictor_hindcast=paired_refc,
                 obs=paired_obs,
                 forecast=fcst_dekad,

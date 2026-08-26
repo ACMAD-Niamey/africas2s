@@ -1,7 +1,7 @@
 """Smoke tests for the §8 end-to-end reference example (issue #24).
 
 The dry-run test is fast (no compute). The tiny-pipeline test runs the real
-DeepScale pipeline (seasonal_mme -> flex_forecast) on small synthetic data with
+AfricaS2S pipeline (seasonal_mme -> flex_forecast) on small synthetic data with
 no network, so it's marked `integration` to stay out of the fast unit gate.
 """
 import subprocess

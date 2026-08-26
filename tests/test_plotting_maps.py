@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 gpd = pytest.importorskip("geopandas")
 from shapely.geometry import box  # noqa: E402
 
-from deepscale.plotting.maps import plot_choropleth, plot_field_map  # noqa: E402
+from africas2s.plotting.maps import plot_choropleth, plot_field_map  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -199,7 +199,7 @@ def test_clip_dissolves_multiple_features(regions):
 
 
 def test_natural_earth_borders_crops_to_region():
-    import deepscale as ds
+    import africas2s as ds
     import pytest
     try:
         world = ds.natural_earth_borders()

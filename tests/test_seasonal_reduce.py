@@ -1,10 +1,10 @@
-"""deepscale.climate.seasonal_reduce: per-year aggregation over selected calendar months."""
+"""africas2s.climate.seasonal_reduce: per-year aggregation over selected calendar months."""
 import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
 
-from deepscale.climate import seasonal_reduce
+from africas2s.climate import seasonal_reduce
 
 
 def _monthly(years=range(2000, 2010), lat=(-2.0, 0.0, 2.0), lon=(34.0, 38.0)):

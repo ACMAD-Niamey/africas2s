@@ -20,7 +20,7 @@ Run from the repository root:
   uv run python examples/demo_seasonal_mme_multimodel.py
 
 Prerequisites:
-  1. Install Rosetta and DeepScale in local virtualenvs.
+  1. Install Rosetta and AfricaS2S in local virtualenvs.
   2. Configure CDS credentials in ~/.cdsapirc (see rosetta/README.md).
   3. Accept CDS dataset licenses for ERA5 + C3S datasets.
 
@@ -31,7 +31,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import xarray as xr
-import deepscale as ds
+import africas2s as ds
 
 # ---------------------------------------------------------------------------
 # Configuration

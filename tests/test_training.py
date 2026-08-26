@@ -27,15 +27,15 @@ def _data(n_years=12, n_members=3):
 
 
 def test_train_returns_fitted_method():
-    import deepscale.training as T
+    import africas2s.training as T
     gcm, obs = _data()
     m = T.train("cca", gcm, obs, n_modes=2, verbose=False)
     assert m.is_trained is True
 
 
 def test_train_writes_loadable_checkpoint(tmp_path):
-    import deepscale.training as T
-    from deepscale.methods.cca import CCAMethod
+    import africas2s.training as T
+    from africas2s.methods.cca import CCAMethod
     gcm, obs = _data()
     ckpt = tmp_path / "cca.pkl"
     T.train("cca", gcm, obs, save_to=ckpt, n_modes=2, verbose=False)
@@ -47,8 +47,8 @@ def test_train_writes_loadable_checkpoint(tmp_path):
 
 def test_train_then_downscale_weights_path_roundtrip(tmp_path):
     """The whole point of #27: train once, save, then inference-only via downscale."""
-    import deepscale
-    import deepscale.training as T
+    import africas2s
+    import africas2s.training as T
     gcm, obs = _data()
     forecast = gcm.isel(year=-1, drop=True)
     ckpt = tmp_path / "cca.pkl"
@@ -59,7 +59,7 @@ def test_train_then_downscale_weights_path_roundtrip(tmp_path):
         save_to=ckpt, n_modes=2, verbose=False,
     )
     expected = m.predict(forecast)
-    result = deepscale.downscale(
+    result = africas2s.downscale(
         predictor_hindcast=forecast, method="cca",
         weights_path=str(ckpt), verbose=False,
     )
@@ -67,9 +67,9 @@ def test_train_then_downscale_weights_path_roundtrip(tmp_path):
 
 
 def test_downscale_requires_training_without_weights_raises():
-    import deepscale
-    from deepscale.registry import register_method
-    from deepscale.methods.base import MethodBase
+    import africas2s
+    from africas2s.registry import register_method
+    from africas2s.methods.base import MethodBase
 
     @register_method("test_needs_training")
     class _NeedsTraining(MethodBase):
@@ -83,14 +83,14 @@ def test_downscale_requires_training_without_weights_raises():
 
     gcm, obs = _data()
     with pytest.raises(RuntimeError, match="requires separate training"):
-        deepscale.downscale(gcm, obs, method="test_needs_training", verbose=False)
+        africas2s.downscale(gcm, obs, method="test_needs_training", verbose=False)
 
 
 def test_downscale_requires_training_with_weights_ok(tmp_path):
-    import deepscale
-    import deepscale.training as T
-    from deepscale.registry import register_method
-    from deepscale.methods.base import MethodBase
+    import africas2s
+    import africas2s.training as T
+    from africas2s.registry import register_method
+    from africas2s.methods.base import MethodBase
 
     @register_method("test_needs_training2")
     class _NeedsTraining2(MethodBase):
@@ -110,7 +110,7 @@ def test_downscale_requires_training_with_weights_ok(tmp_path):
     ckpt = tmp_path / "nt.pkl"
     T.train("test_needs_training2", gcm, obs, save_to=ckpt, verbose=False)
     forecast = gcm.isel(year=-1, drop=True)
-    result = deepscale.downscale(
+    result = africas2s.downscale(
         predictor_hindcast=forecast, method="test_needs_training2",
         weights_path=str(ckpt), verbose=False,
     )
@@ -118,7 +118,7 @@ def test_downscale_requires_training_with_weights_ok(tmp_path):
 
 
 def test_default_method_does_not_require_training():
-    from deepscale.methods.base import MethodBase
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.base import MethodBase
+    from africas2s.methods.cca import CCAMethod
     assert MethodBase.requires_training is False
     assert CCAMethod.requires_training is False

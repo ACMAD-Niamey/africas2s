@@ -50,7 +50,7 @@ def test_ensemble_safeguards_end_to_end(planted_signal_ensemble):
     best member are in tension; tightening to 2 lets recovery happen while
     still rejecting wholly-degenerate winner-take-all fits.
     """
-    from deepscale.ensemble import ensemble, EnsembleResult
+    from africas2s.ensemble import ensemble, EnsembleResult
 
     forecasts, obs = planted_signal_ensemble
     result = ensemble(
@@ -89,7 +89,7 @@ def test_safeguards_path_populates_member_contributions():
     member_contributions with one entry per member."""
     import numpy as np
     import xarray as xr
-    from deepscale import ensemble
+    from africas2s import ensemble
 
     rng = np.random.default_rng(99)
     n_year = 25
