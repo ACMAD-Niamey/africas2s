@@ -31,6 +31,9 @@ from .plotting.scenarios import plot_accumulation_scenarios, plot_index_scatter
 from .plotting.maps import natural_earth_borders, plot_field_map, plot_choropleth
 from .plotting.style import TercileStyle
 from .plotting.forecasts import plot_field, plot_tercile_comparison, render_styled_terciles
+from .plotting.panels import plot_matrix, plot_components_objective, tercile_legend_handles
+from .plotting.forecasts import region_masks
+from .plotting.style import tercile_diverging_cmap
 from . import methods     # trigger registration
 from . import metrics     # trigger registration
 from .metrics import loo_predict, loo_corr, permutation_test, fdr
@@ -97,4 +100,9 @@ __all__ = [
     "plot_field",
     "render_styled_terciles",
     "plot_tercile_comparison",
+    "plot_matrix",
+    "plot_components_objective",
+    "tercile_legend_handles",
+    "region_masks",
+    "tercile_diverging_cmap",
 ]

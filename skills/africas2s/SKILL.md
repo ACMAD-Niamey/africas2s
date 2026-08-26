@@ -157,5 +157,5 @@ obs = rosetta.fetch("obs/era5", "precip", region=[-5, 15, 33, 48],
 - [references/aggregations.md](references/aggregations.md): rainy-season onset/cessation/season length and dry-spell statistics from daily rainfall
 - [references/methods.md](references/methods.md) — downscale methods, calibrators, ensemble strategies (+ `pool_ensembles`), tercile combination/masking (`combine`), CV schemes, registries
 - [references/metrics-and-terciles.md](references/metrics-and-terciles.md) — every metric's semantics + tercile conversion discipline + predictor-significance tools
-- [references/plotting-reporting.md](references/plotting-reporting.md) — which plot for which artifact, forecast/skill maps, field maps & choropleths, scenario/index plots, SVSLRF PDFs, GeoTIFF/NetCDF export, headless figure handling
+- [references/plotting-reporting.md](references/plotting-reporting.md) — which plot for which artifact, forecast/skill maps, panel grids & components+objective composites (`plot_matrix`), JSON style files (`TercileStyle.from_json`), field maps & choropleths, scenario/index plots, SVSLRF PDFs, GeoTIFF/NetCDF export, headless figure handling
 - [references/troubleshooting.md](references/troubleshooting.md) — error → cause table, environment/install setup, test markers, operational scripts, convention caveats
