@@ -54,8 +54,8 @@ def test_reporting_cluster_end_to_end(tmp_path, reporting_inputs):
     pytest.importorskip("rioxarray")
     pypdf = pytest.importorskip("pypdf")
 
-    from deepscale.skill import skill
-    from deepscale.compare import skill_compare
+    from africas2s.skill import skill
+    from africas2s.compare import skill_compare
 
     fcst_a, fcst_b, obs = reporting_inputs
 

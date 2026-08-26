@@ -1,4 +1,4 @@
-# DeepScale — Test Specification
+# AfricaS2S — Test Specification
 
 Tests are layered: fast unit tests with synthetic data, integration tests that run real methods on small real data, and end-to-end pipeline tests.
 
@@ -247,8 +247,8 @@ test_cca_real_data
 
 ```
 test_e2e_single_gcm_single_method
-  result = deepscale.downscale(gcm, obs, method="bcsd", ...)
-  report = deepscale.skill(result, obs, metrics=["rpss"])
+  result = africas2s.downscale(gcm, obs, method="bcsd", ...)
+  report = africas2s.skill(result, obs, metrics=["rpss"])
   Assert report.scores["rpss"] is a finite float.
   Assert result forecast is at obs resolution.
 ```
@@ -257,7 +257,7 @@ test_e2e_single_gcm_single_method
 
 ```
 test_e2e_optimize_single_gcm
-  best = deepscale.optimize(
+  best = africas2s.optimize(
       gcm, obs,
       methods=["bcsd", "cca"],
       cv="loyo",
@@ -273,14 +273,14 @@ test_e2e_optimize_single_gcm
 ```
 test_e2e_multi_gcm_ensemble
   # Optimize 2 GCMs independently
-  best1 = deepscale.optimize(gcm1, obs, methods=["bcsd", "cca"], ...)
-  best2 = deepscale.optimize(gcm2, obs, methods=["bcsd", "cca"], ...)
+  best1 = africas2s.optimize(gcm1, obs, methods=["bcsd", "cca"], ...)
+  best2 = africas2s.optimize(gcm2, obs, methods=["bcsd", "cca"], ...)
 
   # Combine
-  mme = deepscale.ensemble([best1, best2], obs, strategy="uniform")
+  mme = africas2s.ensemble([best1, best2], obs, strategy="uniform")
 
   # Verify
-  report = deepscale.skill(mme, obs, metrics=["rpss", "roc"])
+  report = africas2s.skill(mme, obs, metrics=["rpss", "roc"])
 
   Assert report.scores has "rpss" and "roc" keys.
   Assert mme forecast shape matches obs grid.
@@ -324,13 +324,13 @@ Verify that new methods/metrics can be plugged in without breaking anything.
 test_plugin_method_contract
   Define a trivial DummyMethod that returns obs mean as forecast.
   Register it with @register_method("dummy").
-  Run deepscale.downscale(gcm, obs, method="dummy").
+  Run africas2s.downscale(gcm, obs, method="dummy").
   Assert it produces valid output shape.
 
 test_plugin_metric_contract
   Define a trivial DummyMetric that returns 0.5 always.
   Register it with @register_metric("dummy_metric").
-  Run deepscale.skill(forecast, obs, metrics=["dummy_metric"]).
+  Run africas2s.skill(forecast, obs, metrics=["dummy_metric"]).
   Assert report.scores["dummy_metric"] == 0.5.
 ```
 
@@ -340,14 +340,14 @@ test_plugin_metric_contract
 
 ```bash
 # Unit tests only (fast, synthetic data)
-pytest deepscale/tests/ -m "not integration"
+pytest africas2s/tests/ -m "not integration"
 
 # All tests
-pytest deepscale/tests/
+pytest africas2s/tests/
 
 # Just pipeline tests
-pytest deepscale/tests/ -k "e2e"
+pytest africas2s/tests/ -k "e2e"
 
 # Just plugin contract tests
-pytest deepscale/tests/ -k "plugin"
+pytest africas2s/tests/ -k "plugin"
 ```

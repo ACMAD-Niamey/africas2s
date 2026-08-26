@@ -27,13 +27,13 @@ def _same_grid_data(seed=2, n_years=30, n_members=3, gcm_loc=10.0, obs_loc=5.0,
 
 
 def test_dqm_registry_lookup():
-    from deepscale.registry import get_method
-    from deepscale.methods.dqm import DetrendedQuantileMappingMethod
+    from africas2s.registry import get_method
+    from africas2s.methods.dqm import DetrendedQuantileMappingMethod
     assert get_method("dqm") is DetrendedQuantileMappingMethod
 
 
 def test_dqm_fit_stores_trend_and_cdf_state(synthetic_gcm_hindcast, synthetic_obs):
-    from deepscale.methods.dqm import DetrendedQuantileMappingMethod
+    from africas2s.methods.dqm import DetrendedQuantileMappingMethod
     m = DetrendedQuantileMappingMethod()
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     assert hasattr(m, "gcm_slope_")
@@ -46,7 +46,7 @@ def test_dqm_fit_stores_trend_and_cdf_state(synthetic_gcm_hindcast, synthetic_ob
 @pytest.mark.parametrize("variant", ["empirical", "parametric"])
 def test_dqm_predict_shape_on_obs_grid(variant, synthetic_gcm_hindcast,
                                        synthetic_gcm_forecast, synthetic_obs):
-    from deepscale.methods.dqm import DetrendedQuantileMappingMethod
+    from africas2s.methods.dqm import DetrendedQuantileMappingMethod
     m = DetrendedQuantileMappingMethod(variant=variant)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     result = m.predict(synthetic_gcm_forecast)
@@ -57,7 +57,7 @@ def test_dqm_predict_shape_on_obs_grid(variant, synthetic_gcm_hindcast,
 
 def test_dqm_reduces_bias_on_untrended_data():
     """With no trend, DQM still bias-corrects the GCM toward the obs climatology."""
-    from deepscale.methods.dqm import DetrendedQuantileMappingMethod
+    from africas2s.methods.dqm import DetrendedQuantileMappingMethod
     gcm, obs = _same_grid_data(gcm_loc=10.0, obs_loc=5.0, gcm_trend_per_year=0.0)
     m = DetrendedQuantileMappingMethod(variant="empirical")
     m.fit(gcm, obs)
@@ -68,8 +68,8 @@ def test_dqm_reduces_bias_on_untrended_data():
 def test_dqm_preserves_gcm_trend_vs_plain_qm():
     """DQM re-adds the GCM trend, so on a strongly-trended GCM its forecast sits
     well above plain QM (which absorbs the trend into the CDF)."""
-    from deepscale.methods.dqm import DetrendedQuantileMappingMethod
-    from deepscale.methods.qm import QuantileMappingMethod
+    from africas2s.methods.dqm import DetrendedQuantileMappingMethod
+    from africas2s.methods.qm import QuantileMappingMethod
     gcm, obs = _same_grid_data(gcm_loc=5.0, obs_loc=5.0, gcm_trend_per_year=0.5)
     forecast = gcm.isel(year=-1)  # the highest-trend year
 
@@ -82,11 +82,11 @@ def test_dqm_preserves_gcm_trend_vs_plain_qm():
 
 
 def test_dqm_downscale_integration():
-    import deepscale
+    import africas2s
     gcm, obs = _same_grid_data(gcm_trend_per_year=0.3)
-    cont = deepscale.downscale(gcm, obs, method="dqm", verbose=False)
+    cont = africas2s.downscale(gcm, obs, method="dqm", verbose=False)
     assert cont.dims == ("member", "lat", "lon")
-    terc = deepscale.downscale(gcm, obs, method="dqm", output_type="tercile",
+    terc = africas2s.downscale(gcm, obs, method="dqm", output_type="tercile",
                                verbose=False)
     assert "tercile" in terc.dims
     np.testing.assert_allclose(terc.sum("tercile").values, 1.0, atol=1e-9)

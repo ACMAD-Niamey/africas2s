@@ -1,9 +1,9 @@
-"""Unit tests for deepscale.logistic_forecast (the WVG/logit stream)."""
+"""Unit tests for africas2s.logistic_forecast (the WVG/logit stream)."""
 import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale.logistic import logistic_forecast  # internal engine behind calibrate(method="logit")
+from africas2s.logistic import logistic_forecast  # internal engine behind calibrate(method="logit")
 
 
 def _make_obs(index, responsive_cells, n_lat=3, n_lon=3, slope=-40.0, noise=8.0, seed=0):
@@ -108,7 +108,7 @@ def test_labels_assign_tied_boundary_values_to_below_and_above():
     'normal' class. A dry cell with a mass of zeros at the lower boundary should
     populate below-normal; a mass at the upper boundary should populate
     above-normal. This is the opt-in `tercile_edges="inclusive"` convention."""
-    from deepscale.logistic import _labels_from_obs
+    from africas2s.logistic import _labels_from_obs
 
     # Lower-boundary mass: 12 zeros (dry) + 18 increasing positives over 30 yrs.
     dry = np.concatenate([np.zeros(12), np.linspace(1.0, 18.0, 18)])
@@ -133,7 +133,7 @@ def test_labels_exclusive_default_ties_to_normal():
     dry/wet tied fixture as the inclusive test, opposite assertion: the dry
     cell's zero mass sits exactly at t33, so with strict `<` it is NOT
     below-normal."""
-    from deepscale.logistic import _labels_from_obs
+    from africas2s.logistic import _labels_from_obs
 
     dry = np.concatenate([np.zeros(12), np.linspace(1.0, 18.0, 18)])
     wet = np.concatenate([np.linspace(0.0, 17.0, 18), np.full(12, 100.0)])
@@ -179,7 +179,7 @@ def test_degenerate_label_uses_base_rate():
 
 def test_logit_detrend_kwarg_matches_manual_detrend():
     import numpy as np, xarray as xr
-    from deepscale.calibrate import calibrate, _detrend_index
+    from africas2s.calibrate import calibrate, _detrend_index
     years = list(range(1993, 2021))
     # trended index series + obs, two models
     def series(slope, seed):

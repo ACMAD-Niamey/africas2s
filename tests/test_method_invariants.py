@@ -45,7 +45,7 @@ def _obs_from_year_fields(fields, lat=None, lon=None):
 
 
 def test_delta_zero_anomaly_returns_observed_climatology_exactly():
-    from deepscale.methods.delta import DeltaScalingMethod
+    from africas2s.methods.delta import DeltaScalingMethod
 
     gcm_fields = np.arange(5 * 2 * 2, dtype=float).reshape(5, 2, 2)
     obs_fields = 100.0 + 2.0 * gcm_fields
@@ -61,7 +61,7 @@ def test_delta_zero_anomaly_returns_observed_climatology_exactly():
 
 
 def test_climatology_predicts_grouped_observed_mean_for_each_member():
-    from deepscale.methods.climatology import ClimatologyMethod
+    from africas2s.methods.climatology import ClimatologyMethod
 
     obs_fields = np.array(
         [
@@ -85,7 +85,7 @@ def test_climatology_predicts_grouped_observed_mean_for_each_member():
 
 
 def test_qm_empirical_identity_when_model_and_obs_distributions_match():
-    from deepscale.methods.qm import QuantileMappingMethod
+    from africas2s.methods.qm import QuantileMappingMethod
 
     fields = np.array(
         [
@@ -107,7 +107,7 @@ def test_qm_empirical_identity_when_model_and_obs_distributions_match():
 
 
 def test_qm_empirical_transfer_function_is_monotonic_per_cell():
-    from deepscale.methods.qm import QuantileMappingMethod
+    from africas2s.methods.qm import QuantileMappingMethod
 
     gcm_fields = np.array([np.full((2, 2), value) for value in [1.0, 2.0, 3.0, 4.0]])
     obs_fields = 10.0 + 3.0 * gcm_fields
@@ -126,7 +126,7 @@ def test_qm_empirical_transfer_function_is_monotonic_per_cell():
 
 
 def test_qm_empirical_clamps_forecasts_to_observed_training_support():
-    from deepscale.methods.qm import QuantileMappingMethod
+    from africas2s.methods.qm import QuantileMappingMethod
 
     gcm_fields = np.array([np.full((2, 2), value) for value in [1.0, 2.0, 3.0, 4.0]])
     obs_fields = np.array([np.full((2, 2), value) for value in [10.0, 20.0, 30.0, 40.0]])
@@ -144,8 +144,8 @@ def test_qm_empirical_clamps_forecasts_to_observed_training_support():
 
 
 def test_dqm_zero_trend_collapses_to_qm_for_same_convention():
-    from deepscale.methods.dqm import DetrendedQuantileMappingMethod
-    from deepscale.methods.qm import QuantileMappingMethod
+    from africas2s.methods.dqm import DetrendedQuantileMappingMethod
+    from africas2s.methods.qm import QuantileMappingMethod
 
     # Symmetric sequence around the centered time axis gives zero fitted slope.
     gcm_series = np.array([1.0, 2.0, 3.0, 2.0, 1.0])
@@ -170,7 +170,7 @@ def test_dqm_zero_trend_collapses_to_qm_for_same_convention():
 
 
 def test_dqm_parametric_preserves_known_additive_model_trend():
-    from deepscale.methods.dqm import DetrendedQuantileMappingMethod
+    from africas2s.methods.dqm import DetrendedQuantileMappingMethod
 
     centered_time = np.arange(5, dtype=float) - 2.0
     slope = 2.5
@@ -190,7 +190,7 @@ def test_dqm_parametric_preserves_known_additive_model_trend():
 
 
 def test_bcsd_same_grid_output_matches_bias_corrected_coarse_stage():
-    from deepscale.methods.bcsd import BCSDMethod
+    from africas2s.methods.bcsd import BCSDMethod
 
     gcm_fields = np.array([np.full((2, 2), value) for value in [1.0, 2.0, 3.0, 4.0]])
     obs_fields = 20.0 + 2.0 * gcm_fields
@@ -209,7 +209,7 @@ def test_bcsd_same_grid_output_matches_bias_corrected_coarse_stage():
 
 
 def test_bcsd_zero_spatial_detail_fine_grid_matches_interpolated_correction():
-    from deepscale.methods.bcsd import BCSDMethod
+    from africas2s.methods.bcsd import BCSDMethod
 
     gcm_fields = np.array([np.full((2, 2), value) for value in [1.0, 2.0, 3.0, 4.0]])
     hindcast = _hindcast_from_year_fields(gcm_fields)
@@ -227,7 +227,7 @@ def test_bcsd_zero_spatial_detail_fine_grid_matches_interpolated_correction():
 
 
 def test_rank_analog_known_rank_indexes_expected_sorted_observation():
-    from deepscale.methods.rank_analog import RankAnalogMethod
+    from africas2s.methods.rank_analog import RankAnalogMethod
 
     offsets = np.array([[0.0, 0.1], [0.2, 0.3]])
     gcm_fields = np.array([np.full((2, 2), value) for value in [0.0, 1.0, 2.0, 3.0]])
@@ -244,7 +244,7 @@ def test_rank_analog_known_rank_indexes_expected_sorted_observation():
 
 
 def test_rank_analog_upscale_and_crop_indexing_uses_expected_ranks():
-    from deepscale.methods.rank_analog import RankAnalogMethod
+    from africas2s.methods.rank_analog import RankAnalogMethod
 
     gcm_fields = np.array([np.full((2, 2), value) for value in [0.0, 1.0, 2.0, 3.0]])
     fine_offsets = np.arange(9, dtype=float).reshape(3, 3) / 100.0
@@ -265,7 +265,7 @@ def test_rank_analog_upscale_and_crop_indexing_uses_expected_ranks():
 
 
 def test_cca_reconstructs_low_rank_training_pattern_up_to_sign_conventions():
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
 
     t = np.linspace(-2.0, 2.0, 6)
     x_pattern = np.array([[1.0, -0.5], [0.25, 0.75]])
@@ -286,7 +286,7 @@ def test_cca_reconstructs_low_rank_training_pattern_up_to_sign_conventions():
 
 
 def test_cca_canonical_correlation_is_invariant_to_predictand_sign_flip():
-    from deepscale.methods.cca import CCAMethod
+    from africas2s.methods.cca import CCAMethod
 
     t = np.linspace(-2.0, 2.0, 6)
     x_pattern = np.array([[1.0, -0.5], [0.25, 0.75]])

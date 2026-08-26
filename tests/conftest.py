@@ -69,7 +69,7 @@ def synthetic_obs():
 @pytest.fixture
 def perfect_tercile_forecast(synthetic_obs):
     """Tercile forecast that perfectly matches obs categories (CPT-compatible)."""
-    from deepscale.metrics.rpss import _cpt_boundaries
+    from africas2s.metrics.rpss import _cpt_boundaries
     t33, t67 = _cpt_boundaries(synthetic_obs.values)
     # CPT categorization: strict < for lower boundary
     cat = xr.where(

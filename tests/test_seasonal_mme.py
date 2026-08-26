@@ -1,9 +1,9 @@
-"""Unit tests for `deepscale.pipelines.seasonal.seasonal_mme`."""
+"""Unit tests for `africas2s.pipelines.seasonal.seasonal_mme`."""
 import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale import seasonal_mme, SeasonalMMEResult
+from africas2s import seasonal_mme, SeasonalMMEResult
 
 
 def _grid(values, *, year_coords, name="x"):
@@ -39,8 +39,8 @@ def _make_predictor(values, *, member, year_coords, name="m"):
 
 def test_function_and_result_importable():
     """Smoke test: the function and the result type are exposed from
-    `deepscale` and `deepscale.pipelines`."""
-    from deepscale.pipelines import seasonal_mme as f, SeasonalMMEResult as R
+    `africas2s` and `africas2s.pipelines`."""
+    from africas2s.pipelines import seasonal_mme as f, SeasonalMMEResult as R
     assert f is seasonal_mme
     assert R is SeasonalMMEResult
 

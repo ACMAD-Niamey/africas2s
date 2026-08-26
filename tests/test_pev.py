@@ -1,9 +1,9 @@
-"""Unit tests for `deepscale.pev.prediction_error_variance`."""
+"""Unit tests for `africas2s.pev.prediction_error_variance`."""
 import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale.pev import prediction_error_variance
+from africas2s.pev import prediction_error_variance
 
 
 def _gridded(values, years):
@@ -116,5 +116,5 @@ def test_one_dimensional_station_layout():
 
 
 def test_top_level_export():
-    import deepscale
-    assert deepscale.prediction_error_variance is prediction_error_variance
+    import africas2s
+    assert africas2s.prediction_error_variance is prediction_error_variance

@@ -2,7 +2,7 @@
 """
 reproduce_batch.py
 ==================
-End-to-end pipeline comparison: DeepScale/Rosetta  vs  pycpt/CPT/IRI.
+End-to-end pipeline comparison: AfricaS2S/Rosetta  vs  pycpt/CPT/IRI.
 
 Runs all 3 regions × 3 seasons for two validated GCM configurations
 and saves four plots into ./output/ (relative to this script):
@@ -18,11 +18,11 @@ ECMWF:  SEAS51c monthly, 1993-2016, EOF modes (8, 6, 3)  — default, well-deter
 CFSv2:  PENTAD_SAMPLES_FULL, 1993-2010, EOF modes (4, 4, 2)  — reduced modes required
         because 18 training years / 13 per fold makes CCA underdetermined at (8,6,3).
         PSF (PENTAD_SAMPLES_FULL) aligns with the IRI endpoint pycpt uses.
-        See DEEPSCALE_USAGE_NOTES.md §§9-10 for the full diagnosis.
+        See AFRICAS2S_USAGE_NOTES.md §§9-10 for the full diagnosis.
 
 Usage
 -----
-  cd deepscale
+  cd africas2s
   conda run -n accord python scripts/reproduce_batch.py
 """
 
@@ -44,14 +44,14 @@ OUT_DIR = Path(__file__).resolve().parent / "output"
 OUT_DIR.mkdir(exist_ok=True)
 
 sys.path.insert(0, str(REPO / "rosetta"   / "src"))
-sys.path.insert(0, str(REPO / "deepscale" / "src"))
+sys.path.insert(0, str(REPO / "africas2s" / "src"))
 
 import rosetta
-from deepscale.methods.cca      import CCAMethod
-from deepscale.cv                import loyo as ds_loyo
-from deepscale.tercile           import to_tercile_cv
-from deepscale.metrics.rpss      import RPSSMetric
-from deepscale.metrics.pearson   import PearsonMetric
+from africas2s.methods.cca      import CCAMethod
+from africas2s.cv                import loyo as ds_loyo
+from africas2s.tercile           import to_tercile_cv
+from africas2s.metrics.rpss      import RPSSMetric
+from africas2s.metrics.pearson   import PearsonMetric
 import pycpt
 
 # ---------------------------------------------------------------------------
@@ -388,7 +388,7 @@ def run_slot(region_name, season_name, cfg):
                       gcm_ros.mean(["member","lat","lon"]).values)
     print(f"  Ros GCM: {ros_gcm_s:.1f}s  r(IRI,Ros)={r_gcm:.4f}")
 
-    # -- 5. DeepScale LOYO CV ----------------------------------------
+    # -- 5. AfricaS2S LOYO CV ----------------------------------------
     t0 = time.perf_counter()
     preds, levs = [], []
     for train_yrs, test_yr in ds_loyo(years, window=cfg["cv_window"]):

@@ -40,7 +40,7 @@ def ensemble_forecast_and_obs():
 
 def test_skill_includes_spread_error_metrics(ensemble_forecast_and_obs):
     """skill() resolves both names and returns finite values for both."""
-    from deepscale.skill import skill
+    from africas2s.skill import skill
 
     forecast, obs = ensemble_forecast_and_obs
     report = skill(

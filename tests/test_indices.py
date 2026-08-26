@@ -1,9 +1,9 @@
-"""Unit tests for deepscale.Index (teleconnection SST indices)."""
+"""Unit tests for africas2s.Index (teleconnection SST indices)."""
 import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale import Index
+from africas2s import Index
 
 
 def _sst(years, lat, lon, values):

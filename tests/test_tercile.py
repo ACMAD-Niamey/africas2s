@@ -14,7 +14,7 @@ def test_to_tercile_cv_default_is_leakage_disciplined():
     the issue (§6.5 / #22) made this the disciplined default.
     """
     import inspect
-    from deepscale.tercile import to_tercile_cv
+    from africas2s.tercile import to_tercile_cv
     sig = inspect.signature(to_tercile_cv)
     assert sig.parameters["cpt_boundaries"].default is True
 
@@ -26,7 +26,7 @@ def test_to_tercile_cv_disciplined_and_leaky_paths_diverge():
     If they ever produce identical results, the boundary path has silently
     been short-circuited and the leakage discipline has lost its teeth.
     """
-    from deepscale.tercile import to_tercile_cv
+    from africas2s.tercile import to_tercile_cv
     rng = np.random.default_rng(0)
     n_years = 14
     years = np.arange(2000, 2000 + n_years)
@@ -54,7 +54,7 @@ def test_to_tercile_cv_disciplined_and_leaky_paths_diverge():
 
 def test_to_tercile_cv_leaky_path_still_available():
     """Opt-in leaky behaviour stays accessible for legacy/comparison runs."""
-    from deepscale.tercile import to_tercile_cv
+    from africas2s.tercile import to_tercile_cv
     rng = np.random.default_rng(1)
     n_years = 10
     years = np.arange(2000, 2000 + n_years)
@@ -75,7 +75,7 @@ def test_to_tercile_cv_leaky_path_still_available():
 
 
 def test_continuous_to_tercile(synthetic_gcm_forecast, synthetic_obs):
-    from deepscale.tercile import to_tercile
+    from africas2s.tercile import to_tercile
     result = to_tercile(synthetic_gcm_forecast, synthetic_obs)
     assert "tercile" in result.dims
     assert result.dims == ("tercile", "lat", "lon")
@@ -89,7 +89,7 @@ def test_continuous_to_tercile(synthetic_gcm_forecast, synthetic_obs):
 
 def test_tercile_uniform_from_climatology(synthetic_obs):
     """If forecast matches obs climatology, tercile probs ≈ 1/3."""
-    from deepscale.tercile import to_tercile
+    from africas2s.tercile import to_tercile
     # Use obs mean as every member's "forecast"
     clim = synthetic_obs.mean("year")
     members = np.arange(20)  # many members all at climatology

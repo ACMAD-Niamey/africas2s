@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 import xarray as xr
-from deepscale.methods.cca import CCAMethod
+from africas2s.methods.cca import CCAMethod
 
 
 def _synthetic_data():

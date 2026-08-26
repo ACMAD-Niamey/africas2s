@@ -18,8 +18,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import rosetta
 
-from deepscale import aggregations as agg
-from deepscale.plotting.maps import plot_field_map
+from africas2s import aggregations as agg
+from africas2s.plotting.maps import plot_field_map
 
 REGION = [-12.0, 23.0, 21.0, 52.0]   # [lat_s, lat_n, lon_w, lon_e], GHA
 YEARS = (2005, 2023)

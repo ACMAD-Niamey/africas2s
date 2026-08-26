@@ -4,9 +4,9 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from deepscale.analog import analogs_from_index, analogs_from_years
-from deepscale.climate import seasonal_stack
-from deepscale.completion import complete
+from africas2s.analog import analogs_from_index, analogs_from_years
+from africas2s.climate import seasonal_stack
+from africas2s.completion import complete
 
 SEASON = "JJAS"
 YEARS = np.arange(1981, 2027)
@@ -284,7 +284,7 @@ def test_weighted_quantile_never_leaves_the_data_range():
     """A weighted quantile at an extreme q must clamp to the outermost scenario,
     not extrapolate past it. Regression for the upper-tail extrapolation bug
     (q=0.99 on [10,20,100]/[.6,.3,.1] previously returned ~116 > 100)."""
-    from deepscale.completion import _weighted_quantile
+    from africas2s.completion import _weighted_quantile
 
     vals = np.array([10.0, 20.0, 100.0])
     w = np.array([0.6, 0.3, 0.1])

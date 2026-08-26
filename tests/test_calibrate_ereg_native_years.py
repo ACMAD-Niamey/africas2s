@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-import deepscale
+import africas2s
 
 
 def _grid(values, *, year_coords, name="x"):
@@ -65,7 +65,7 @@ def test_default_still_raises_on_missing_obs_years():
     hcst = _minimal_hcst(HCST_YEARS)
     fcst = hcst.isel(year=[-1]).assign_coords(year=[2001])
     with pytest.raises(ValueError, match="missing obs years"):
-        deepscale.calibrate(
+        africas2s.calibrate(
             {"m1": (hcst, fcst)}, obs=obs, method="ereg", forecast_year=2001,
         )
 
@@ -75,7 +75,7 @@ def test_native_years_true_does_not_raise_and_returns_simplex():
     obs = _minimal_obs(OBS_YEARS)
     hcst = _minimal_hcst(HCST_YEARS)
     fcst = hcst.isel(year=[-1]).assign_coords(year=[2001])
-    out = deepscale.calibrate(
+    out = africas2s.calibrate(
         {"m1": (hcst, fcst)}, obs=obs, method="ereg",
         native_years=True, forecast_year=2001,
     )
@@ -93,7 +93,7 @@ def test_native_years_true_raises_below_floor():
     hcst = _minimal_hcst([1999, 2000])  # only 2 overlap years with obs
     fcst = hcst.isel(year=[-1]).assign_coords(year=[2001])
     with pytest.raises(ValueError):
-        deepscale.calibrate(
+        africas2s.calibrate(
             {"m1": (hcst, fcst)}, obs=obs, method="ereg",
             native_years=True, forecast_year=2001,
         )
@@ -105,7 +105,7 @@ def test_native_years_false_default_unaffected_when_overlap_full():
     obs = _minimal_obs(OBS_YEARS)
     hcst = _minimal_hcst(OBS_YEARS)
     fcst = hcst.isel(year=[-1]).assign_coords(year=[2001])
-    out = deepscale.calibrate(
+    out = africas2s.calibrate(
         {"m1": (hcst, fcst)}, obs=obs, method="ereg", forecast_year=2001,
     )
     assert out.sizes["tercile"] == 3

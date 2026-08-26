@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale.flex_forecast import flex_forecast, FlexForecastResult
+from africas2s.flex_forecast import flex_forecast, FlexForecastResult
 
 
 def _grid(vals):
@@ -96,6 +96,6 @@ def test_to_dict_round_trips():
 
 
 def test_exports_available():
-    import deepscale
-    assert hasattr(deepscale, "flex_forecast")
-    assert hasattr(deepscale, "FlexForecastResult")
+    import africas2s
+    assert hasattr(africas2s, "flex_forecast")
+    assert hasattr(africas2s, "FlexForecastResult")

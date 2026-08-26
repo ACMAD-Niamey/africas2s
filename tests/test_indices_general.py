@@ -8,8 +8,8 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale import Index
-from deepscale.indices import REGIONS
+from africas2s import Index
+from africas2s.indices import REGIONS
 
 
 def _field(years, lat, lon, values):

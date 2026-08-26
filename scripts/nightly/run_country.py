@@ -23,7 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT.parent / "rosetta" / "src"))
 
-import deepscale  # noqa: E402
+import africas2s  # noqa: E402
 
 from scripts.nightly.config import load_config  # noqa: E402
 from scripts.nightly.output_writer import write_output  # noqa: E402
@@ -112,7 +112,7 @@ def _run_one_target(country_name: str, country, target: Target,
         gcm = _to_gcm_array(gcm_ds, variable, country.hindcast_period)
         predictor_tracks[variable][product] = (gcm, None)
 
-    result = deepscale.seasonal_mme(
+    result = africas2s.seasonal_mme(
         predictor_tracks,
         obs,
         method=country.method,

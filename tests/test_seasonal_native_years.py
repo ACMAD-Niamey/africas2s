@@ -9,8 +9,8 @@ import numpy as np
 import pytest
 import xarray as xr
 
-import deepscale
-from deepscale import seasonal_mme
+import africas2s
+from africas2s import seasonal_mme
 
 
 def _grid(values, *, year_coords, name="x"):
@@ -63,7 +63,7 @@ def test_native_years_requires_cpt_per_model():
     """native_years=True + probability_aggregation='pooled' is undefined
     (pooling members with different year sets) and must raise early."""
     with pytest.raises(ValueError, match="cpt_per_model"):
-        deepscale.seasonal_mme(
+        africas2s.seasonal_mme(
             {"prcp": {}}, xr.DataArray([0]),
             method="cca", native_years=True, probability_aggregation="pooled",
         )
@@ -76,7 +76,7 @@ def test_native_years_rejects_skillmask_threshold():
     union/intersection of per-model years, not the coherent baseline that
     produced tercile_forecast. Must raise early, before any calibration."""
     with pytest.raises(ValueError, match="skillmask"):
-        deepscale.seasonal_mme(
+        africas2s.seasonal_mme(
             {"prcp": {}}, xr.DataArray([0]),
             method="cca", native_years=True, probability_aggregation="cpt_per_model",
             cpt_args={"skillmask_threshold": 0.1},

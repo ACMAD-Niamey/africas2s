@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 import xarray as xr
 
-import deepscale
-from deepscale.registry import get_calibrator
+import africas2s
+from africas2s.registry import get_calibrator
 
 SEASONS = ["DJF", "JFM", "FMA", "MAM", "AMJ", "MJJ",
            "JJA", "JAS", "ASO", "SON", "OND", "NDJ"]
@@ -31,7 +31,7 @@ def test_smoothed_regression_registered_and_deterministic():
 
 def test_calibrate_deterministic_returns_season_map():
     fc, ob = _cube()
-    out = deepscale.calibrate(fc, ob, method="smoothed_regression",
+    out = africas2s.calibrate(fc, ob, method="smoothed_regression",
                               output_type="deterministic", temporal_sigma="constant",
                               forecast_year=2010)
     assert out.dims == ("season", "lat", "lon")
@@ -42,7 +42,7 @@ def test_calibrate_deterministic_supported_for_ereg():
     # ereg gained deterministic output (the calibrated OLS-corrected field
     # behind the terciles) — contract change, previously rejected.
     fc, ob = _cube()
-    out = deepscale.calibrate({"m": (fc.isel(season=0), fc.isel(season=0, year=[-1]))},
+    out = africas2s.calibrate({"m": (fc.isel(season=0), fc.isel(season=0, year=[-1]))},
                               ob.isel(season=0), method="ereg",
                               output_type="deterministic",
                               forecast_year=int(ob.year[-1]))
@@ -55,7 +55,7 @@ def test_calibrate_deterministic_rejected_for_logit():
     fc, ob = _cube()
     idx = fc.isel(season=0).mean(["lat", "lon", "member"])
     with pytest.raises(ValueError, match="output_type"):
-        deepscale.calibrate({"m": idx}, ob.isel(season=0), method="logit",
+        africas2s.calibrate({"m": idx}, ob.isel(season=0), method="logit",
                             forecast={"m": 0.0}, output_type="deterministic")
 
 
@@ -63,7 +63,7 @@ def test_smoothed_regression_tercile_output_supported():
     # Round 2 filled in the previously-stubbed tercile path; it now returns category
     # probabilities (below/near/above) summing to 1, with the season axis this method owns.
     fc, ob = _cube()
-    out = deepscale.calibrate(fc, ob, method="smoothed_regression", output_type="tercile",
+    out = africas2s.calibrate(fc, ob, method="smoothed_regression", output_type="tercile",
                               temporal_sigma="constant")
     assert out.dims == ("season", "tercile", "lat", "lon")
     np.testing.assert_allclose(out.sum("tercile").values, 1.0, atol=1e-9)
@@ -72,7 +72,7 @@ def test_smoothed_regression_tercile_output_supported():
 def test_smoothed_regression_out_of_sample_year_raises_clear_error():
     fc, ob = _cube()  # years 1991..2015
     with pytest.raises(ValueError, match="not in the hindcast years"):
-        deepscale.calibrate(fc, ob, method="smoothed_regression",
+        africas2s.calibrate(fc, ob, method="smoothed_regression",
                             output_type="deterministic", forecast_year=2099)
 
 
@@ -80,7 +80,7 @@ def test_smoothed_regression_separate_forecast_field_accepted():
     # Round 2 (issue #5): a separate out-of-sample forecast ensemble is applied
     # through the hindcast fit instead of raising NotImplementedError.
     fc, ob = _cube()
-    out = deepscale.calibrate(fc, ob, method="smoothed_regression",
+    out = africas2s.calibrate(fc, ob, method="smoothed_regression",
                               output_type="deterministic", forecast=fc.isel(year=-1))
     assert out.dims == ("season", "lat", "lon")
     assert bool(np.isfinite(out).all())
@@ -91,7 +91,7 @@ def test_smoothed_regression_unknown_output_type_raises():
     # gate): a recognized-but-unsupported output_type is rejected with a clear message.
     fc, ob = _cube()
     with pytest.raises(NotImplementedError, match="unknown output_type"):
-        deepscale.calibrate(fc, ob, method="smoothed_regression", output_type="exceedance")
+        africas2s.calibrate(fc, ob, method="smoothed_regression", output_type="exceedance")
 
 
 @pytest.mark.parametrize("temporal_sigma", [None, 1.5])
@@ -99,7 +99,7 @@ def test_deterministic_temporal_sigma_dial_returns_finite_map(temporal_sigma):
     # The per-season (None) and cyclic-Gaussian (float) dials both flow through the public
     # calibrate() entry point, not just the 'constant' case the other tests exercise.
     fc, ob = _cube()
-    out = deepscale.calibrate(fc, ob, method="smoothed_regression",
+    out = africas2s.calibrate(fc, ob, method="smoothed_regression",
                               output_type="deterministic", temporal_sigma=temporal_sigma,
                               forecast_year=2010)
     assert out.dims == ("season", "lat", "lon")

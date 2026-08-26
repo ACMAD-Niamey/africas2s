@@ -1,4 +1,4 @@
-"""Assemble the gh-pages tree for the DeepScale Pages site.
+"""Assemble the gh-pages tree for the AfricaS2S Pages site.
 
 Installs the shared site shell (hub index.html + theme.css) at the pages root and
 rebuilds the s2s/ subtree from a freshly-rendered build dir, leaving sibling

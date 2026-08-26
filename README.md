@@ -1,21 +1,21 @@
-# DeepScale
+# AfricaS2S
 
 Modular downscaling, calibration, and verification for seasonal climate forecasts.
 
-DeepScale turns coarse global-model (GCM) forecasts and fine-resolution observations into calibrated, high-resolution forecast products, and scores them with cross-validated skill metrics. It operates on xarray arrays and is agnostic to where the data came from, so it pairs naturally with a data layer like [Rosetta](https://github.com/accord-research/rosetta) but does not require it.
+AfricaS2S turns coarse global-model (GCM) forecasts and fine-resolution observations into calibrated, high-resolution forecast products, and scores them with cross-validated skill metrics. It operates on xarray arrays and is agnostic to where the data came from, so it pairs naturally with a data layer like [Rosetta](https://github.com/accord-research/rosetta) but does not require it.
 
 Downscaling methods, skill metrics, and ensemble strategies are looked up by name from a registry, so you select them with plain strings and can add new ones without changing the orchestration code.
 
 ## Installation
 
 ```bash
-pip install accord-deepscale
+pip install africas2s
 ```
 
-The distribution is published as `accord-deepscale`; the import name is `deepscale`:
+The distribution is published as `africas2s`; the import name is `africas2s`:
 
 ```python
-import deepscale
+import africas2s
 ```
 
 The shapefile and region-clipping helpers additionally require Rosetta:
@@ -24,27 +24,27 @@ The shapefile and region-clipping helpers additionally require Rosetta:
 pip install accord-rosetta
 ```
 
-DeepScale requires Python 3.10 or newer.
+AfricaS2S requires Python 3.10 or newer.
 
 ## Core API
 
 ```python
-import deepscale
+import africas2s
 
 # Bias-correct and downscale one model against observations.
-result = deepscale.downscale(gcm, obs, method="bcsd")
+result = africas2s.downscale(gcm, obs, method="bcsd")
 
 # Turn a predictor into below/normal/above tercile probabilities.
-probs = deepscale.calibrate(predictor, obs, method="ereg")
+probs = africas2s.calibrate(predictor, obs, method="ereg")
 
 # Try several methods and keep the most skillful.
-best = deepscale.optimize(gcm, obs, methods=["bcsd", "cca"])
+best = africas2s.optimize(gcm, obs, methods=["bcsd", "cca"])
 
 # Combine multiple models into one forecast.
-mme = deepscale.ensemble([model_a, model_b], obs, strategy="uniform")
+mme = africas2s.ensemble([model_a, model_b], obs, strategy="uniform")
 
 # Score a forecast against observations.
-report = deepscale.skill(forecast, obs, metrics=["rpss", "roc"])
+report = africas2s.skill(forecast, obs, metrics=["rpss", "roc"])
 ```
 
 Inputs are xarray arrays with CF-style coordinates. A GCM hindcast has dimensions `(year, member, lat, lon)` and observations have `(year, lat, lon)`. Outputs are continuous or tercile forecast products plus skill summaries and maps. Terciles are ordered `[0, 1, 2]` for below-normal, normal, and above-normal.
@@ -65,7 +65,7 @@ Downscaling and bias-correction methods, passed as `method=` to `downscale()` an
 | `climatology` | Climatological baseline |
 | `rank-analog` | Rank-based quantile matching |
 | `chelsa` | CHELSA V2 orographic precipitation redistribution; requires fine terrain plus training-period wind, with optional PBL/orography/exposure inputs |
-| `corrdiff` | NVIDIA CorrDiff diffusion downscaling; needs GPU dependencies that are not on PyPI (see `src/deepscale/methods/corrdiff.py`) |
+| `corrdiff` | NVIDIA CorrDiff diffusion downscaling; needs GPU dependencies that are not on PyPI (see `src/africas2s/methods/corrdiff.py`) |
 
 Calibration methods, passed as `method=` to `calibrate()`:
 
@@ -86,7 +86,7 @@ Cross-validation schemes: `loyo` (leave-one-year-out), `lko` (leave-k-out), `blo
 Rainy-season timing and dry-spell statistics, for products that need a date rather than a seasonal total. These take continuous daily rainfall rather than the seasonal arrays above, and are module-qualified rather than selected by name:
 
 ```python
-from deepscale import aggregations as agg
+from africas2s import aggregations as agg
 
 onset = agg.onset(daily, season="MAM")                       # default criterion
 cessation = agg.cessation(daily, season="MAM", after=onset)
@@ -103,7 +103,7 @@ spells = agg.dry_spell(daily, season="MAM")
 
 Onset defaults to 20 mm across 3 consecutive days, rejected as a false start if a 7-day dry spell falls within the following 21 days. Every threshold is a keyword argument, so other regional definitions are one call away, and the values used are recorded on the output for provenance.
 
-Timing results carry a three-state `occurred` field distinguishing a season that failed from a cell with no data, which a NaN date alone cannot express. Output dims are `(year, lat, lon)`, the same shape the rest of the library takes for observations. Full detail, including how much daily data each function needs past the season end, is in [skills/deepscale/references/aggregations.md](skills/deepscale/references/aggregations.md).
+Timing results carry a three-state `occurred` field distinguishing a season that failed from a cell with no data, which a NaN date alone cannot express. Output dims are `(year, lat, lon)`, the same shape the rest of the library takes for observations. Full detail, including how much daily data each function needs past the season end, is in [skills/africas2s/references/aggregations.md](skills/africas2s/references/aggregations.md).
 
 ## Example workflow
 
@@ -113,20 +113,20 @@ The repository ships a runnable end-to-end demo:
 python examples/demo_forecast.py
 ```
 
-It uses Rosetta to fetch ERA5 temperature observations (`obs/era5`) and ECMWF seasonal hindcasts (`c3s/ecmwf-monthly`), reshapes them into DeepScale inputs, then runs optimize, tercile conversion, and skill scoring. Rosetta handles the remote retrieval and normalization; DeepScale starts from the prepared xarray datasets.
+It uses Rosetta to fetch ERA5 temperature observations (`obs/era5`) and ECMWF seasonal hindcasts (`c3s/ecmwf-monthly`), reshapes them into AfricaS2S inputs, then runs optimize, tercile conversion, and skill scoring. Rosetta handles the remote retrieval and normalization; AfricaS2S starts from the prepared xarray datasets.
 
 The demo needs CDS credentials in `~/.cdsapirc` with the relevant dataset licences accepted (see the Rosetta README for setup). `examples/README.md` lists all demos and their prerequisites.
 
 ## Calibration
 
-`deepscale.calibrate()` produces tercile probabilities with dims `(tercile, lat, lon)` directly. Use it when the predictor is already on the target grid, or when a scalar index drives the forecast.
+`africas2s.calibrate()` produces tercile probabilities with dims `(tercile, lat, lon)` directly. Use it when the predictor is already on the target grid, or when a scalar index drives the forecast.
 
 ### Ensemble regression (`method="ereg"`)
 
 eReg fits each model independently with per-grid-cell ordinary least squares: the ensemble-mean hindcast predicts the observed field, and the chosen forecast year is converted to parametric tercile probabilities. Multiple models are averaged after each produces its own probability map.
 
 ```python
-probs = deepscale.calibrate(
+probs = africas2s.calibrate(
     {
         "ecmwf": (ecmwf_hindcast_on_obs_grid, ecmwf_forecast_on_obs_grid),
         "ukmo": (ukmo_hindcast_on_obs_grid, ukmo_forecast_on_obs_grid),
@@ -144,11 +144,11 @@ Each hindcast needs a `year` dimension, an optional `member` dimension, and spat
 logit fits a gridded logistic relationship between a scalar predictor index and observed tercile occurrence. Pass the hindcast index series as `predictor` and the forecast-year value as `forecast`.
 
 ```python
-index = deepscale.Index.named("wvg")
+index = africas2s.Index.named("wvg")
 hindcast_index = index.reduce(sst_hindcast)
 forecast_index = index.reduce(sst_forecast, climatology=sst_hindcast)
 
-probs = deepscale.calibrate(
+probs = africas2s.calibrate(
     hindcast_index, obs, method="logit", forecast=forecast_index,
 )
 ```
@@ -156,12 +156,12 @@ probs = deepscale.calibrate(
 For gridded SST predictors, `LogitConfig` reduces the fields through an `Index` before calibration:
 
 ```python
-probs = deepscale.calibrate(
+probs = africas2s.calibrate(
     predictor_hindcast=sst_hindcast,
     predictor_forecast=sst_forecast,
     obs=obs,
-    method=deepscale.LogitConfig(
-        index=deepscale.Index.named("wvg"),
+    method=africas2s.LogitConfig(
+        index=africas2s.Index.named("wvg"),
         detrend=True,
         significance=0.1,
     ),
@@ -178,7 +178,7 @@ Two output modes via `output_type`:
 
 ```python
 # Deterministic: rescaled ensemble-mean anomaly (scored with the `msss` metric).
-adjusted = deepscale.calibrate(
+adjusted = africas2s.calibrate(
     hindcast, obs,                       # (season, year, member, lat, lon) / (season, year, lat, lon)
     method="smoothed_regression",
     output_type="deterministic",
@@ -187,7 +187,7 @@ adjusted = deepscale.calibrate(
 )
 
 # Probabilistic: below/normal/above tercile probabilities (scored with `crpss`, `reliability`).
-probs = deepscale.calibrate(
+probs = africas2s.calibrate(
     hindcast, obs,
     method="smoothed_regression",
     output_type="tercile",
@@ -198,7 +198,7 @@ probs = deepscale.calibrate(
 # Real-time: apply the hindcast fit to an out-of-sample forecast ensemble
 # (e.g. OND 2026 against a 1993-2020 hindcast). The forecast members go through
 # the hindcast-fitted coefficients, gamma parameters, and tercile boundaries.
-probs_2026 = deepscale.calibrate(
+probs_2026 = africas2s.calibrate(
     hindcast, obs,
     method="smoothed_regression",
     output_type="tercile",
@@ -207,7 +207,7 @@ probs_2026 = deepscale.calibrate(
 )
 ```
 
-The probabilistic mode additionally calibrates the forecast spread and, for precipitation, works through a gamma distribution so probabilities never fall on negative rainfall. `deepscale.seasonal_coefficients(hindcast, obs, temporal_sigma=...)` exposes the fitted, smoothed coefficient field for inspection or plotting.
+The probabilistic mode additionally calibrates the forecast spread and, for precipitation, works through a gamma distribution so probabilities never fall on negative rainfall. `africas2s.seasonal_coefficients(hindcast, obs, temporal_sigma=...)` exposes the fitted, smoothed coefficient field for inspection or plotting.
 
 Multi-model input uses the same `{model: (hindcast, forecast)}` shape as `ereg`, but where `ereg` calibrates each model separately and averages the tercile maps, `smoothed_regression` pools the members across models into one super-ensemble (with reindexed member ids) and calibrates that, matching the Kharin et al. experiment design. Hindcast years are intersected across models and with the obs before fitting.
 
@@ -215,13 +215,13 @@ Runnable examples: `examples/demo_ensemble_regression.py` (eReg) and `examples/d
 
 ## Relationship to Rosetta
 
-Rosetta handles data acquisition and normalization; DeepScale handles forecasting and verification. The interface between them is standardized xarray, so DeepScale stays source-agnostic and works with any data prepared the same way.
+Rosetta handles data acquisition and normalization; AfricaS2S handles forecasting and verification. The interface between them is standardized xarray, so AfricaS2S stays source-agnostic and works with any data prepared the same way.
 
 ## Development setup
 
 ```bash
-git clone https://github.com/accord-research/deepscale.git
-cd deepscale
+git clone https://github.com/ACMAD-Niamey/africas2s.git
+cd africas2s
 uv sync
 ```
 
@@ -234,4 +234,4 @@ cd rosetta
 uv sync
 ```
 
-The roadmap (PyCPT parity, additional methods, and machine-learning tiers) is tracked on [GitHub Issues](https://github.com/accord-research/deepscale/issues?q=is%3Aopen+label%3Av1-roadmap) under the `v1-roadmap` label.
+The roadmap (PyCPT parity, additional methods, and machine-learning tiers) is tracked on [GitHub Issues](https://github.com/ACMAD-Niamey/africas2s/issues?q=is%3Aopen+label%3Av1-roadmap) under the `v1-roadmap` label.

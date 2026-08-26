@@ -23,7 +23,7 @@ import numpy as np
 import requests
 import xarray as xr
 
-import deepscale as ds
+import africas2s as ds
 
 
 REGION = [-3.0, -1.0, 28.8, 31.0]  # Rwanda: south, north, west, east

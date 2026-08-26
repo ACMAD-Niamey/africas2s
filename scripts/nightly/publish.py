@@ -57,7 +57,7 @@ def publish(
     the matrix should have produced; missing artifacts become status=failed.
 
     `kind` distinguishes operational (forecast as-issued at its init date) from
-    rebench (re-run of a historical forecast under current deepscale). Rows of
+    rebench (re-run of a historical forecast under current africas2s). Rows of
     both kinds coexist in metrics.json; the dashboard filters on `kind`.
 
     No dedupe: every call appends rows. Re-running publish for the same set
@@ -163,7 +163,7 @@ def _cli() -> None:
     p.add_argument(
         "--kind", default="operational", choices=["operational", "rebench"],
         help="Row kind. `operational` = forecast as-issued at its init date. "
-             "`rebench` = re-run of a historical forecast under current deepscale.",
+             "`rebench` = re-run of a historical forecast under current africas2s.",
     )
     args = p.parse_args()
     expected = [tuple(x) for x in json.loads(args.expected)]

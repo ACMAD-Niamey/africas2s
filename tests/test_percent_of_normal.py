@@ -16,14 +16,14 @@ def _obs(seed=7, n_years=20):
 
 
 def test_percent_of_normal_basic_value():
-    import deepscale as ds
+    import africas2s as ds
 
     out = ds.percent_of_normal(xr.DataArray(50.0), xr.DataArray(100.0))
     np.testing.assert_allclose(float(out), 50.0)
 
 
 def test_percent_of_normal_reduces_year_reference():
-    import deepscale as ds
+    import africas2s as ds
 
     obs = _obs()
     value = obs.isel(year=-1, drop=True)
@@ -33,7 +33,7 @@ def test_percent_of_normal_reduces_year_reference():
 
 
 def test_percent_of_normal_dry_cell_is_nan():
-    import deepscale as ds
+    import africas2s as ds
 
     clim = xr.DataArray(
         [[0.0, 10.0], [np.nan, -1.0]],
@@ -48,7 +48,7 @@ def test_percent_of_normal_dry_cell_is_nan():
 
 
 def test_percent_of_normal_dry_threshold_param():
-    import deepscale as ds
+    import africas2s as ds
 
     clim = xr.DataArray([0.4, 2.0], dims=["lon"], coords={"lon": [30.0, 31.0]})
     value = xr.DataArray([1.0, 1.0], dims=["lon"], coords={"lon": [30.0, 31.0]})

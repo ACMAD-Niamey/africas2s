@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install_pycpt.sh — Install PyCPT v2.10.4 for DeepScale comparison.
+# install_pycpt.sh — Install PyCPT v2.10.4 for AfricaS2S comparison.
 #
 # Installs miniforge (via brew) if conda is not available, then creates
 # the pycpt conda env from the official lock file. CPT binary is x86_64

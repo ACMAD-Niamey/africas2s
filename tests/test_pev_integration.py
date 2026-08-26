@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale import ensemble, prediction_error_variance
+from africas2s import ensemble, prediction_error_variance
 
 
 def _year_dim_forecast(values, years, name="m"):

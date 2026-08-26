@@ -3,8 +3,8 @@ import numpy as np
 import xarray as xr
 import pytest
 
-from deepscale import seasonal_mme, downscale, ensemble, skill
-from deepscale.tercile import to_tercile_cv
+from africas2s import seasonal_mme, downscale, ensemble, skill
+from africas2s.tercile import to_tercile_cv
 
 
 def _grid(values, *, year_coords, name="x"):
@@ -110,7 +110,7 @@ def test_seasonal_mme_surfaces_member_contributions():
             year_coords=years, name="m",
         )
 
-    from deepscale import seasonal_mme
+    from africas2s import seasonal_mme
     result = seasonal_mme(
         {"prcp": {"A": (_h(1), None), "B": (_h(2), None)},
          "sst":  {"A": (_h(3), None), "B": (_h(4), None)}},

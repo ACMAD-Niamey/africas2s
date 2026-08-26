@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import numpy as np
 import xarray as xr
-import deepscale as ds
+import africas2s as ds
 
 
 def _data():

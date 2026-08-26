@@ -1,8 +1,8 @@
-"""Tests for cross-validation + significance helpers (deepscale.metrics)."""
+"""Tests for cross-validation + significance helpers (africas2s.metrics)."""
 import numpy as np
 import pytest
 
-from deepscale.metrics import loo_predict, loo_corr, leverage, permutation_test, fdr
+from africas2s.metrics import loo_predict, loo_corr, leverage, permutation_test, fdr
 
 
 # ---- leave-one-out cross-validation --------------------------------------------------

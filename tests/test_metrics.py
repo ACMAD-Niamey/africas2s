@@ -8,14 +8,14 @@ import xarray as xr
 # ===================================================================
 
 def test_rpss_perfect_forecast(perfect_tercile_forecast, synthetic_obs):
-    from deepscale.metrics.rpss import RPSSMetric
+    from africas2s.metrics.rpss import RPSSMetric
     m = RPSSMetric()
     score = m.compute(perfect_tercile_forecast, synthetic_obs)
     assert score > 0.9  # near-perfect
 
 
 def test_rpss_climatology_forecast(climatology_forecast, synthetic_obs):
-    from deepscale.metrics.rpss import RPSSMetric
+    from africas2s.metrics.rpss import RPSSMetric
     m = RPSSMetric()
     score = m.compute(climatology_forecast, synthetic_obs)
     np.testing.assert_allclose(score, 0.0, atol=0.05)
@@ -23,12 +23,12 @@ def test_rpss_climatology_forecast(climatology_forecast, synthetic_obs):
 
 def test_rpss_worse_than_climatology(synthetic_obs):
     """Inverted forecast should give negative RPSS."""
-    from deepscale.metrics.rpss import RPSSMetric
+    from africas2s.metrics.rpss import RPSSMetric
     years = synthetic_obs.year.values
     fine_lat = synthetic_obs.lat.values
     fine_lon = synthetic_obs.lon.values
 
-    from deepscale.metrics.rpss import _cpt_boundaries
+    from africas2s.metrics.rpss import _cpt_boundaries
     t33, t67 = _cpt_boundaries(synthetic_obs.values)
     t33_da = xr.DataArray(t33, dims=["lat", "lon"], coords={k: synthetic_obs.coords[k] for k in ["lat", "lon"]})
     t67_da = xr.DataArray(t67, dims=["lat", "lon"], coords={k: synthetic_obs.coords[k] for k in ["lat", "lon"]})
@@ -44,7 +44,7 @@ def test_rpss_worse_than_climatology(synthetic_obs):
 
 
 def test_rpss_shape_spatial(climatology_forecast, synthetic_obs):
-    from deepscale.metrics.rpss import RPSSMetric
+    from africas2s.metrics.rpss import RPSSMetric
     m = RPSSMetric()
     result = m.compute(climatology_forecast, synthetic_obs, spatial=True)
     assert isinstance(result, xr.DataArray)
@@ -60,7 +60,7 @@ def test_cpt_boundaries_masks_degenerate_cells():
     groc on kenya + nigeria because dry-season CHIRPS cells (>= 2/3 zeros)
     yielded t33 = t67 = 0, and the categorization collapsed silently.
     """
-    from deepscale.metrics.rpss import _cpt_boundaries
+    from africas2s.metrics.rpss import _cpt_boundaries
 
     n_year = 24
     # Mix of three cell types in a tiny (2, 2) spatial grid:
@@ -89,7 +89,7 @@ def test_rpss_survives_mixed_degenerate_and_varied_cells(synthetic_obs):
     `_cpt_boundaries` mask, even one degenerate cell could be enough to ruin
     the pooled score; after the mask, the metric averages only valid cells.
     """
-    from deepscale.metrics.rpss import RPSSMetric, _cpt_boundaries
+    from africas2s.metrics.rpss import RPSSMetric, _cpt_boundaries
 
     # Force the first lat slice to all-zero (a dry-season strip), leaving the
     # rest of the synthetic obs intact.
@@ -125,7 +125,7 @@ def test_rpss_survives_mixed_degenerate_and_varied_cells(synthetic_obs):
 # ===================================================================
 
 def test_roc_perfect_discrimination(perfect_tercile_forecast, synthetic_obs):
-    from deepscale.metrics.roc import ROCMetric
+    from africas2s.metrics.roc import ROCMetric
     m = ROCMetric()
     result = m.compute(perfect_tercile_forecast, synthetic_obs)
     assert "roc_bn" in result
@@ -134,7 +134,7 @@ def test_roc_perfect_discrimination(perfect_tercile_forecast, synthetic_obs):
 
 
 def test_roc_no_discrimination(climatology_forecast, synthetic_obs):
-    from deepscale.metrics.roc import ROCMetric
+    from africas2s.metrics.roc import ROCMetric
     m = ROCMetric()
     result = m.compute(climatology_forecast, synthetic_obs)
     # Uniform forecast => no discrimination => ROC ~0.5
@@ -142,7 +142,7 @@ def test_roc_no_discrimination(climatology_forecast, synthetic_obs):
 
 
 def test_roc_per_tercile(perfect_tercile_forecast, synthetic_obs):
-    from deepscale.metrics.roc import ROCMetric
+    from africas2s.metrics.roc import ROCMetric
     m = ROCMetric()
     result = m.compute(perfect_tercile_forecast, synthetic_obs)
     assert "roc_bn" in result
@@ -155,14 +155,14 @@ def test_roc_per_tercile(perfect_tercile_forecast, synthetic_obs):
 # ===================================================================
 
 def test_pearson_perfect(synthetic_obs):
-    from deepscale.metrics.pearson import PearsonMetric
+    from africas2s.metrics.pearson import PearsonMetric
     m = PearsonMetric()
     score = m.compute(synthetic_obs, synthetic_obs)
     np.testing.assert_allclose(score, 1.0, atol=0.001)
 
 
 def test_pearson_zero():
-    from deepscale.metrics.pearson import PearsonMetric
+    from africas2s.metrics.pearson import PearsonMetric
     np.random.seed(123)
     years = np.arange(100)
     lat = np.linspace(-1, 1, 5)
@@ -181,14 +181,14 @@ def test_pearson_zero():
 # ===================================================================
 
 def test_rmse_perfect(synthetic_obs):
-    from deepscale.metrics.rmse import RMSEMetric
+    from africas2s.metrics.rmse import RMSEMetric
     m = RMSEMetric()
     score = m.compute(synthetic_obs, synthetic_obs)
     np.testing.assert_allclose(score, 0.0, atol=1e-10)
 
 
 def test_rmse_constant_mean(synthetic_obs):
-    from deepscale.metrics.rmse import RMSEMetric
+    from africas2s.metrics.rmse import RMSEMetric
     # Forecast = climatological mean broadcast back across years.
     # RMSE per grid cell should equal the population std (ddof=0) per grid cell.
     forecast = synthetic_obs.mean("year") + 0 * synthetic_obs  # broadcast trick
@@ -199,8 +199,8 @@ def test_rmse_constant_mean(synthetic_obs):
 
 
 def test_rmse_alias_registered():
-    from deepscale.registry import get_metric
-    from deepscale.metrics.rmse import RMSEMetric
+    from africas2s.registry import get_metric
+    from africas2s.metrics.rmse import RMSEMetric
     assert get_metric("root_mean_squared_error") is RMSEMetric
     assert get_metric("rmse") is RMSEMetric
 
@@ -210,8 +210,8 @@ def test_rmse_alias_registered():
 # ===================================================================
 
 def test_hss_perfect(synthetic_obs):
-    from deepscale.metrics.heidke import HSSMetric
-    from deepscale.metrics.rpss import _cpt_boundaries
+    from africas2s.metrics.heidke import HSSMetric
+    from africas2s.metrics.rpss import _cpt_boundaries
 
     t33, t67 = _cpt_boundaries(synthetic_obs.values)
     obs_vals = synthetic_obs.values
@@ -239,7 +239,7 @@ def test_hss_perfect(synthetic_obs):
 
 
 def test_hss_no_skill(synthetic_obs):
-    from deepscale.metrics.heidke import HSSMetric
+    from africas2s.metrics.heidke import HSSMetric
 
     n_year, n_lat, n_lon = synthetic_obs.shape
     fcst = np.zeros((n_year, 3, n_lat, n_lon))
@@ -262,8 +262,8 @@ def test_hss_no_skill(synthetic_obs):
 
 
 def test_hss_alias_registered():
-    from deepscale.registry import get_metric
-    from deepscale.metrics.heidke import HSSMetric
+    from africas2s.registry import get_metric
+    from africas2s.metrics.heidke import HSSMetric
     assert get_metric("heidke_skill_score") is HSSMetric
     assert get_metric("hss") is HSSMetric
 
@@ -273,15 +273,15 @@ def test_hss_alias_registered():
 # ===================================================================
 
 def test_spearman_perfect(synthetic_obs):
-    from deepscale.metrics.spearman import SpearmanMetric
+    from africas2s.metrics.spearman import SpearmanMetric
     m = SpearmanMetric()
     score = m.compute(synthetic_obs, synthetic_obs)
     np.testing.assert_allclose(score, 1.0, atol=0.001)
 
 
 def test_spearman_monotonic_nonlinear():
-    from deepscale.metrics.spearman import SpearmanMetric
-    from deepscale.metrics.pearson import PearsonMetric
+    from africas2s.metrics.spearman import SpearmanMetric
+    from africas2s.metrics.pearson import PearsonMetric
 
     # Centered Gaussian data: x ~ N(0, 1). Cubing strongly distorts linearity
     # while preserving rank order. Theoretical Pearson(X, X^3) for X ~ N(0,1)
@@ -311,7 +311,7 @@ def test_spearman_monotonic_nonlinear():
 
 
 def test_spearman_zero():
-    from deepscale.metrics.spearman import SpearmanMetric
+    from africas2s.metrics.spearman import SpearmanMetric
     np.random.seed(123)
     years = np.arange(100)
     lat = np.linspace(-1, 1, 5)
@@ -330,13 +330,13 @@ def test_spearman_zero():
 # ===================================================================
 
 def test_2afc_perfect(synthetic_obs):
-    from deepscale.metrics.two_afc import TwoAFCMetric
+    from africas2s.metrics.two_afc import TwoAFCMetric
     score = TwoAFCMetric().compute(synthetic_obs, synthetic_obs)
     np.testing.assert_allclose(score, 1.0, atol=0.001)
 
 
 def test_2afc_uniform_random():
-    from deepscale.metrics.two_afc import TwoAFCMetric
+    from africas2s.metrics.two_afc import TwoAFCMetric
     np.random.seed(42)
     n_year, n_lat, n_lon = 100, 5, 5
     coords = {
@@ -353,7 +353,7 @@ def test_2afc_uniform_random():
 
 
 def test_2afc_constant_forecast_no_skill(synthetic_obs):
-    from deepscale.metrics.two_afc import TwoAFCMetric
+    from africas2s.metrics.two_afc import TwoAFCMetric
     forecast = synthetic_obs * 0 + 1.0  # all-constant
     score = TwoAFCMetric().compute(forecast, synthetic_obs)
     # Half-credit-for-ties: a constant forecast scores 0.5 (matches the
@@ -366,14 +366,14 @@ def test_2afc_constant_forecast_no_skill(synthetic_obs):
 # ===================================================================
 
 def test_roc_area_below_normal_matches_roc_bn(synthetic_obs, perfect_tercile_forecast):
-    from deepscale.registry import get_metric
+    from africas2s.registry import get_metric
     full = get_metric("roc")().compute(perfect_tercile_forecast, synthetic_obs)
     bn = get_metric("roc_area_below_normal")().compute(perfect_tercile_forecast, synthetic_obs)
     np.testing.assert_allclose(bn, full["roc_bn"], atol=1e-12)
 
 
 def test_roc_area_above_normal_matches_roc_an(synthetic_obs, perfect_tercile_forecast):
-    from deepscale.registry import get_metric
+    from africas2s.registry import get_metric
     full = get_metric("roc")().compute(perfect_tercile_forecast, synthetic_obs)
     an = get_metric("roc_area_above_normal")().compute(perfect_tercile_forecast, synthetic_obs)
     np.testing.assert_allclose(an, full["roc_an"], atol=1e-12)
@@ -385,7 +385,7 @@ def test_roc_area_above_normal_matches_roc_an(synthetic_obs, perfect_tercile_for
 # ===================================================================
 
 def test_reliability_climatology(synthetic_obs):
-    from deepscale.metrics.reliability import ReliabilityMetric
+    from africas2s.metrics.reliability import ReliabilityMetric
     n_year, n_lat, n_lon = synthetic_obs.shape
     fcst = np.ones((n_year, 3, n_lat, n_lon)) / 3.0  # uniform climatology
     forecast = xr.DataArray(
@@ -402,7 +402,7 @@ def test_reliability_climatology(synthetic_obs):
 
 
 def test_reliability_overconfident(synthetic_obs):
-    from deepscale.metrics.reliability import ReliabilityMetric
+    from africas2s.metrics.reliability import ReliabilityMetric
     n_year, n_lat, n_lon = synthetic_obs.shape
     fcst = np.zeros((n_year, 3, n_lat, n_lon))
     fcst[:, 0, :, :] = 1.0  # always confident BN
@@ -424,8 +424,8 @@ def test_reliability_overconfident(synthetic_obs):
 # ===================================================================
 
 def test_skill_preset_svslrf(synthetic_obs, perfect_tercile_forecast):
-    import deepscale
-    report = deepscale.skill(perfect_tercile_forecast, synthetic_obs, metrics="svslrf")
+    import africas2s
+    report = africas2s.skill(perfect_tercile_forecast, synthetic_obs, metrics="svslrf")
     assert "rpss" in report.scores
     assert "roc_bn" in report.scores  # from "roc" metric (returns dict)
     assert "roc_nn" in report.scores
@@ -435,10 +435,10 @@ def test_skill_preset_svslrf(synthetic_obs, perfect_tercile_forecast):
 
 def test_skill_preset_all_dedupes_aliases(synthetic_obs, perfect_tercile_forecast):
     import warnings
-    import deepscale
+    import africas2s
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        report = deepscale.skill(perfect_tercile_forecast, synthetic_obs, metrics="all")
+        report = africas2s.skill(perfect_tercile_forecast, synthetic_obs, metrics="all")
     # Alias dedup: regardless of whether a given metric computes on this
     # input, the registry must never emit two keys for the same class. RMSE
     # in particular now raises on a tercile-probability forecast, so 0 keys
@@ -458,17 +458,17 @@ def test_skill_preset_all_dedupes_aliases(synthetic_obs, perfect_tercile_forecas
 
 
 def test_skill_bare_string_single_metric(synthetic_obs, perfect_tercile_forecast):
-    import deepscale
-    report = deepscale.skill(perfect_tercile_forecast, synthetic_obs, metrics="rpss")
+    import africas2s
+    report = africas2s.skill(perfect_tercile_forecast, synthetic_obs, metrics="rpss")
     assert "rpss" in report.scores
 
 
 def test_skill_list_metrics_still_works(synthetic_obs, perfect_tercile_forecast):
-    import deepscale
+    import africas2s
     # Two probabilistic metrics that are valid on a tercile-probability forecast.
     # The point of this test is that the explicit-list path still works after
     # the metrics="all" feature was added.
-    report = deepscale.skill(
+    report = africas2s.skill(
         perfect_tercile_forecast, synthetic_obs,
         metrics=["rpss", "heidke_skill_score"],
     )
@@ -489,7 +489,7 @@ def test_spread_error_ratio_calibrated():
     component to error. With bias std B = σ·√(π/2), E[|bias|] = σ, so
     mean(spread) ≈ mean(error) ≈ σ.
     """
-    from deepscale.metrics.spread_error import SpreadErrorRatioMetric
+    from africas2s.metrics.spread_error import SpreadErrorRatioMetric
 
     np.random.seed(0)
     n_year, n_member, n_lat, n_lon = 200, 8, 4, 4
@@ -520,7 +520,7 @@ def test_spread_error_ratio_calibrated():
 
 def test_spread_error_ratio_underdispersed():
     """Spread = 0.1 × error → ratio ≈ 0.1."""
-    from deepscale.metrics.spread_error import SpreadErrorRatioMetric
+    from africas2s.metrics.spread_error import SpreadErrorRatioMetric
 
     np.random.seed(0)
     n_year, n_member, n_lat, n_lon = 30, 8, 4, 4
@@ -556,7 +556,7 @@ def test_spread_error_correlation_tracks():
     the ensemble mean's distance from truth grows with that amplitude, so
     spread and error track each other strongly.
     """
-    from deepscale.metrics.spread_error import SpreadErrorCorrelationMetric
+    from africas2s.metrics.spread_error import SpreadErrorCorrelationMetric
 
     np.random.seed(0)
     n_year, n_member, n_lat, n_lon = 30, 8, 4, 4
@@ -588,7 +588,7 @@ def test_spread_error_correlation_tracks():
 
 def test_spread_error_no_member_raises():
     """Forecast without a 'member' dim is a usage error."""
-    from deepscale.metrics.spread_error import (
+    from africas2s.metrics.spread_error import (
         SpreadErrorRatioMetric,
         SpreadErrorCorrelationMetric,
     )
@@ -615,7 +615,7 @@ def test_spread_error_no_member_raises():
 
 def test_spread_error_spatial_returns_dataarray():
     """spatial=True collapses only the year dim and returns a DataArray."""
-    from deepscale.metrics.spread_error import (
+    from africas2s.metrics.spread_error import (
         SpreadErrorRatioMetric,
         SpreadErrorCorrelationMetric,
     )
@@ -649,7 +649,7 @@ def test_spread_error_spatial_returns_dataarray():
 
 def test_spread_error_diagnostics_pairs():
     """Helper returns per-year spread and error series of equal length."""
-    from deepscale.metrics.spread_error import (
+    from africas2s.metrics.spread_error import (
         SpreadErrorDiagnostics,
         spread_error_diagnostics,
     )
@@ -690,8 +690,8 @@ def test_spread_error_diagnostics_pairs():
 
 def test_groc_perfect_forecast(synthetic_obs):
     """A forecast that puts all probability mass on the correct tercile gives GROC = 1.0."""
-    from deepscale.metrics.generalized_roc import GeneralizedROCMetric
-    from deepscale.metrics.rpss import _cpt_boundaries
+    from africas2s.metrics.generalized_roc import GeneralizedROCMetric
+    from africas2s.metrics.rpss import _cpt_boundaries
 
     obs_vals = synthetic_obs.values
     t33, t67 = _cpt_boundaries(obs_vals)
@@ -717,7 +717,7 @@ def test_groc_perfect_forecast(synthetic_obs):
 
 def test_groc_climatology_forecast(synthetic_obs):
     """A uniform climatological forecast (1/3, 1/3, 1/3) gives GROC = 0.5."""
-    from deepscale.metrics.generalized_roc import GeneralizedROCMetric
+    from africas2s.metrics.generalized_roc import GeneralizedROCMetric
 
     n_year, n_lat, n_lon = synthetic_obs.shape
     fcst = np.ones((n_year, 3, n_lat, n_lon)) / 3.0
@@ -736,8 +736,8 @@ def test_groc_climatology_forecast(synthetic_obs):
 
 def test_groc_spatial_returns_dataarray(synthetic_obs):
     """spatial=True collapses year only and returns a (lat, lon) DataArray."""
-    from deepscale.metrics.generalized_roc import GeneralizedROCMetric
-    from deepscale.metrics.rpss import _cpt_boundaries
+    from africas2s.metrics.generalized_roc import GeneralizedROCMetric
+    from africas2s.metrics.rpss import _cpt_boundaries
 
     obs_vals = synthetic_obs.values
     t33, t67 = _cpt_boundaries(obs_vals)
@@ -767,7 +767,7 @@ def test_groc_spatial_returns_dataarray(synthetic_obs):
 def test_groc_single_category_returns_nan():
     """If every obs sample lands in the same tercile, GROC is undefined → NaN + warning."""
     import warnings as _warnings
-    from deepscale.metrics.generalized_roc import GeneralizedROCMetric
+    from africas2s.metrics.generalized_roc import GeneralizedROCMetric
 
     # All-constant obs → _cpt_boundaries collapses t33 = t67 = the constant,
     # so every cell falls through both `>` comparisons and lands in the same
@@ -798,7 +798,7 @@ def test_groc_single_category_returns_nan():
 
 def test_groc_missing_tercile_raises(synthetic_obs):
     """A forecast without a size-3 'tercile' dim is a usage error."""
-    from deepscale.metrics.generalized_roc import GeneralizedROCMetric
+    from africas2s.metrics.generalized_roc import GeneralizedROCMetric
 
     n_year, n_lat, n_lon = synthetic_obs.shape
     forecast = xr.DataArray(  # no 'tercile' dim at all
@@ -828,7 +828,7 @@ def test_groc_loo_boundaries_perfect(synthetic_obs):
     """LOO path: build the perfect forecast against LOO-derived categories
     and assert score == 1.0. Confirms the LOO branch is actually used (a
     non-LOO-built perfect forecast would *not* score 1.0 here)."""
-    from deepscale.metrics.generalized_roc import (
+    from africas2s.metrics.generalized_roc import (
         GeneralizedROCMetric,
         _obs_to_categories,
     )
@@ -855,8 +855,8 @@ def test_groc_loo_boundaries_perfect(synthetic_obs):
 def test_groc_pairs_correctly_when_forecast_dims_permuted(synthetic_obs):
     """Permuting forecast's non-tercile dims must not change the score —
     catches the obs/forecast flat-pairing hazard."""
-    from deepscale.metrics.generalized_roc import GeneralizedROCMetric
-    from deepscale.metrics.rpss import _cpt_boundaries
+    from africas2s.metrics.generalized_roc import GeneralizedROCMetric
+    from africas2s.metrics.rpss import _cpt_boundaries
 
     obs_vals = synthetic_obs.values
     t33, t67 = _cpt_boundaries(obs_vals)
@@ -894,7 +894,7 @@ def test_groc_independent_oracle():
     in the test): obs is the year index repeated per cell, so terciles are
     just the lowest-third, middle-third, highest-third of years.
     """
-    from deepscale.metrics.generalized_roc import GeneralizedROCMetric
+    from africas2s.metrics.generalized_roc import GeneralizedROCMetric
 
     n_year, n_lat, n_lon = 12, 2, 2  # exactly divisible into thirds
     coords = {
@@ -922,8 +922,8 @@ def test_groc_independent_oracle():
 
 def test_groc_alias_registered():
     """Both 'generalized_roc' and 'groc' resolve to the same class."""
-    from deepscale.registry import get_metric
-    from deepscale.metrics.generalized_roc import GeneralizedROCMetric
+    from africas2s.registry import get_metric
+    from africas2s.metrics.generalized_roc import GeneralizedROCMetric
 
     assert get_metric("generalized_roc") is GeneralizedROCMetric
     assert get_metric("groc") is GeneralizedROCMetric
@@ -934,7 +934,7 @@ def test_groc_two_category_cell_does_not_crash():
     finite Hand-&-Till pair AUC, not an sklearn multiclass ValueError (seen
     live on dry-masked seasonal domains with spatial=True)."""
     import numpy as np
-    from deepscale.metrics.generalized_roc import _groc_from_flat
+    from africas2s.metrics.generalized_roc import _groc_from_flat
 
     rng = np.random.default_rng(7)
     n = 24
@@ -951,7 +951,7 @@ def test_groc_two_category_cell_does_not_crash():
 
 def test_groc_single_category_cell_returns_nan():
     import numpy as np
-    from deepscale.metrics.generalized_roc import _groc_from_flat
+    from africas2s.metrics.generalized_roc import _groc_from_flat
 
     y_true = np.zeros(10, dtype=int)
     y_score = np.full((10, 3), 1 / 3)

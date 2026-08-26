@@ -4,8 +4,8 @@ import pytest
 import xarray as xr
 from scipy.stats import norm
 
-from deepscale.methods._qm_kernel import empirical_map, plotting_positions
-from deepscale.series import ErrorBounds, error_bounds, quantile_map
+from africas2s.methods._qm_kernel import empirical_map, plotting_positions
+from africas2s.series import ErrorBounds, error_bounds, quantile_map
 
 
 @pytest.fixture

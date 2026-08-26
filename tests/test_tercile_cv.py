@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale.tercile import to_tercile_cv
+from africas2s.tercile import to_tercile_cv
 
 
 def _obs(seed=3, n=12):
@@ -23,7 +23,7 @@ def _obs(seed=3, n=12):
 
 
 def test_cpt_tercile_forecast_shape_and_normalization():
-    from deepscale.tercile import cpt_tercile_forecast
+    from africas2s.tercile import cpt_tercile_forecast
 
     lat, lon = [0.0, 1.0], [0.0, 1.0, 2.0]
     fc = xr.DataArray(np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
@@ -41,7 +41,7 @@ def test_cpt_tercile_forecast_shape_and_normalization():
 def test_cpt_tercile_forecast_aligns_transposed_boundaries():
     """Boundary/PEV arrays are aligned to the forecast's dim order before the
     Student-t evaluation, so a transposed input can't mismap probabilities."""
-    from deepscale.tercile import cpt_tercile_forecast
+    from africas2s.tercile import cpt_tercile_forecast
 
     lat, lon = [0.0, 1.0], [0.0, 1.0, 2.0]
     fc = xr.DataArray(np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),

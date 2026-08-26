@@ -41,8 +41,8 @@ jobs:
         run: |
           VERSION=$(grep -E '^version = ' pyproject.toml | head -1 | sed -E 's/version = "(.*)"/\1/')
           echo "pyproject.toml version: $VERSION"
-          if curl -sf "https://pypi.org/pypi/accord-deepscale/$VERSION/json" > /dev/null; then
-            echo "::error::accord-deepscale $VERSION is already on PyPI — bump 'version' in pyproject.toml first."
+          if curl -sf "https://pypi.org/pypi/africas2s/$VERSION/json" > /dev/null; then
+            echo "::error::africas2s $VERSION is already on PyPI — bump 'version' in pyproject.toml first."
             exit 1
           fi
           echo "$VERSION is new on PyPI; proceeding to publish."

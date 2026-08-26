@@ -6,7 +6,7 @@ plus a handful of global fields (lead-day range, climatology baseline
 window, store root).
 
 Loading the config validates that every method named per country is
-registered in deepscale's method registry — catching typos at start-up
+registered in africas2s's method registry — catching typos at start-up
 rather than mid-run.
 """
 
@@ -42,7 +42,7 @@ class S2SConfig:
 
 def load_config(path: str | Path) -> S2SConfig:
     raw = yaml.safe_load(Path(path).read_text())
-    from deepscale.registry import _METHODS  # noqa: WPS433 — internal but stable.
+    from africas2s.registry import _METHODS  # noqa: WPS433 — internal but stable.
     known_methods = set(_METHODS) | {"raw"}  # "raw" is regrid-only, no method class.
 
     countries: dict[str, CountryConfig] = {}

@@ -1,10 +1,10 @@
-# DeepScale examples
+# AfricaS2S examples
 
-Runnable demo scripts for the DeepScale forecasting API. Each script is
+Runnable demo scripts for the AfricaS2S forecasting API. Each script is
 self-contained and is run from the repository root with `uv run`:
 
 ```bash
-uv sync                                       # installs deepscale into the env
+uv sync                                       # installs africas2s into the env
 uv run python examples/demo_quantile_mapping.py
 ```
 
@@ -12,7 +12,7 @@ The scripts in the first table below run offline. The real-data scripts also
 need Rosetta (a separate repo) installed into the same environment:
 
 ```bash
-uv pip install -e ../rosetta                  # clone rosetta alongside deepscale first
+uv pip install -e ../rosetta                  # clone rosetta alongside africas2s first
 ```
 
 ## Run offline (no network, no credentials)

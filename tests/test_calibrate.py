@@ -3,8 +3,8 @@ import numpy as np
 import pytest
 import xarray as xr
 
-import deepscale as ds
-from deepscale.registry import get_calibrator
+import africas2s as ds
+from africas2s.registry import get_calibrator
 
 
 def _gcm_obs(slope=2.0, intercept=5.0, n_years=20, seed=0, bias=3.0):
@@ -46,7 +46,7 @@ def test_calibrators_registered():
 
 def test_calibrate_ereg_single_model_matches_method():
     """calibrate(method='ereg') on one model == that model's predict_tercile."""
-    from deepscale.methods.ensemble_regression import EnsembleRegressionMethod
+    from africas2s.methods.ensemble_regression import EnsembleRegressionMethod
     hcst, obs = _gcm_obs()
     expected = (EnsembleRegressionMethod().fit(hcst, obs)
                 .predict_tercile(hcst.sel(year=[2019]), obs))
@@ -58,7 +58,7 @@ def test_calibrate_ereg_single_model_matches_method():
 
 
 def test_calibrate_ereg_passes_threshold_source():
-    from deepscale.methods.ensemble_regression import EnsembleRegressionMethod
+    from africas2s.methods.ensemble_regression import EnsembleRegressionMethod
     hcst, obs = _gcm_obs(seed=9)
     expected = (EnsembleRegressionMethod().fit(hcst, obs)
                 .predict_tercile(
@@ -331,7 +331,7 @@ def test_calibrate_logit_requires_forecast():
 def test_detrend_index_uses_explicit_forecast_year():
     """For a bare-scalar forecast index (no year coord), _detrend_index must
     detrend at the supplied forecast_year, not blindly at years[-1] + 1."""
-    from deepscale.calibrate import _detrend_index
+    from africas2s.calibrate import _detrend_index
 
     years = list(range(2000, 2020))
     idx = xr.DataArray([2.0 * (y - 2000) for y in years],

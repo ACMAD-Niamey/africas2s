@@ -4,8 +4,8 @@ End-to-end demo: the WVG / logistic seasonal-forecast stream on real data.
 Real-data path (default): fetches ERA5 sea-surface temperature over the tropical
 Pacific (for the Western-V Gradient index) and ERA5 precipitation over East
 Africa (the predictand) via Rosetta, builds a custom WVG index with
-`deepscale.Index.custom(...)`, and runs `deepscale.calibrate(...)` with
-`deepscale.LogitConfig` on gridded SST hindcast/forecast inputs. Always writes
+`africas2s.Index.custom(...)`, and runs `africas2s.calibrate(...)` with
+`africas2s.LogitConfig` on gridded SST hindcast/forecast inputs. Always writes
 a dominant-tercile PNG and NetCDF to examples/output/.
 
 Run from the repository root:
@@ -23,8 +23,8 @@ from pathlib import Path
 
 import numpy as np
 import xarray as xr
-import deepscale as ds
-from deepscale.plotting import plot_tercile_forecast
+import africas2s as ds
+from africas2s.plotting import plot_tercile_forecast
 
 PACIFIC = [-20, 40, 120, 240]            # WVG boxes live here (0-360 lon)
 EAST_AFRICA = [-5, 5, 33, 48]

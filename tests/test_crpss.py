@@ -4,8 +4,8 @@ import xarray as xr
 from scipy import stats
 from scipy.integrate import trapezoid
 
-from deepscale.metrics.crpss import crps_normal, crps_climatology, crpss
-from deepscale.registry import get_metric
+from africas2s.metrics.crpss import crps_normal, crps_climatology, crpss
+from africas2s.registry import get_metric
 
 
 def test_crps_normal_matches_bruteforce():

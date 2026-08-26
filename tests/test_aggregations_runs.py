@@ -2,7 +2,7 @@
 import numpy as np
 import xarray as xr
 
-from deepscale.aggregations._runs import dry_run_lengths, has_data, rolling_total
+from africas2s.aggregations._runs import dry_run_lengths, has_data, rolling_total
 
 
 def _steps(values):

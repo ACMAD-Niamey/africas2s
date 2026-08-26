@@ -3,14 +3,14 @@ End-to-end demo: seasonal_mme() for East Africa MAM temperature.
 
 Demonstrates the single-call seasonal pipeline: instead of wiring up the
 manual downscale/ensemble/to_tercile plumbing by hand, the whole workflow
-runs through one `deepscale.seasonal_mme()` call. Uses ERA5 obs + ECMWF
+runs through one `africas2s.seasonal_mme()` call. Uses ERA5 obs + ECMWF
 SEAS5 hindcasts for MAM temperature over East Africa.
 
 Run from the repository root:
   uv run python examples/demo_seasonal_mme.py
 
 Prerequisites:
-  1. Install Rosetta and DeepScale in local virtualenvs.
+  1. Install Rosetta and AfricaS2S in local virtualenvs.
   2. Configure CDS credentials in ~/.cdsapirc (see rosetta/README.md).
   3. Accept CDS dataset licenses for ERA5 + C3S datasets.
 
@@ -22,7 +22,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import xarray as xr
-import deepscale as ds
+import africas2s as ds
 
 # ---------------------------------------------------------------------------
 # Configuration

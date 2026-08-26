@@ -1,9 +1,9 @@
-"""Unit tests for the shared lat/lon dimension resolver (deepscale._spatial)."""
+"""Unit tests for the shared lat/lon dimension resolver (africas2s._spatial)."""
 import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale._spatial import spatial_dims
+from africas2s._spatial import spatial_dims
 
 
 def _da(lat_name, lon_name):

@@ -26,19 +26,19 @@ def _same_grid_data(seed=1, n_years=30, n_members=4,
 
 
 def test_qm_registry_lookup():
-    from deepscale.registry import get_method
-    from deepscale.methods.qm import QuantileMappingMethod
+    from africas2s.registry import get_method
+    from africas2s.methods.qm import QuantileMappingMethod
     assert get_method("qm") is QuantileMappingMethod
 
 
 def test_qm_invalid_variant_raises():
-    from deepscale.methods.qm import QuantileMappingMethod
+    from africas2s.methods.qm import QuantileMappingMethod
     with pytest.raises(ValueError, match="variant"):
         QuantileMappingMethod(variant="bogus")
 
 
 def test_qm_empirical_fit_stores_sorted_state(synthetic_gcm_hindcast, synthetic_obs):
-    from deepscale.methods.qm import QuantileMappingMethod
+    from africas2s.methods.qm import QuantileMappingMethod
     m = QuantileMappingMethod()  # empirical is the default
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     assert hasattr(m, "gcm_sorted_")
@@ -47,7 +47,7 @@ def test_qm_empirical_fit_stores_sorted_state(synthetic_gcm_hindcast, synthetic_
 
 
 def test_qm_parametric_fit_stores_moments(synthetic_gcm_hindcast, synthetic_obs):
-    from deepscale.methods.qm import QuantileMappingMethod
+    from africas2s.methods.qm import QuantileMappingMethod
     m = QuantileMappingMethod(variant="parametric")
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     for attr in ("gcm_mean_", "gcm_std_", "obs_mean_", "obs_std_"):
@@ -57,7 +57,7 @@ def test_qm_parametric_fit_stores_moments(synthetic_gcm_hindcast, synthetic_obs)
 @pytest.mark.parametrize("variant", ["empirical", "parametric"])
 def test_qm_predict_shape_on_obs_grid(variant, synthetic_gcm_hindcast,
                                       synthetic_gcm_forecast, synthetic_obs):
-    from deepscale.methods.qm import QuantileMappingMethod
+    from africas2s.methods.qm import QuantileMappingMethod
     m = QuantileMappingMethod(variant=variant)
     m.fit(synthetic_gcm_hindcast, synthetic_obs)
     result = m.predict(synthetic_gcm_forecast)
@@ -69,7 +69,7 @@ def test_qm_predict_shape_on_obs_grid(variant, synthetic_gcm_hindcast,
 
 def test_qm_parametric_maps_clim_mean_to_obs_mean():
     """Parametric QM of the GCM climatological mean (z=0) returns obs clim mean."""
-    from deepscale.methods.qm import QuantileMappingMethod
+    from africas2s.methods.qm import QuantileMappingMethod
     gcm, obs = _same_grid_data()
     m = QuantileMappingMethod(variant="parametric")
     m.fit(gcm, obs)
@@ -81,7 +81,7 @@ def test_qm_parametric_maps_clim_mean_to_obs_mean():
 
 def test_qm_empirical_output_bounded_by_obs():
     """Empirical QM clamps to the obs support — outputs stay within the obs range."""
-    from deepscale.methods.qm import QuantileMappingMethod
+    from africas2s.methods.qm import QuantileMappingMethod
     gcm, obs = _same_grid_data()
     m = QuantileMappingMethod(variant="empirical")
     m.fit(gcm, obs)
@@ -93,7 +93,7 @@ def test_qm_empirical_output_bounded_by_obs():
 
 def test_qm_empirical_reduces_bias():
     """Empirical QM pulls the biased GCM toward the obs climatology."""
-    from deepscale.methods.qm import QuantileMappingMethod
+    from africas2s.methods.qm import QuantileMappingMethod
     gcm, obs = _same_grid_data(gcm_loc=10.0, obs_loc=5.0)
     m = QuantileMappingMethod(variant="empirical")
     m.fit(gcm, obs)
@@ -106,11 +106,11 @@ def test_qm_empirical_reduces_bias():
 
 def test_qm_downscale_integration():
     """End-to-end via the public API, continuous and tercile output."""
-    import deepscale
+    import africas2s
     gcm, obs = _same_grid_data()
-    cont = deepscale.downscale(gcm, obs, method="qm", verbose=False)
+    cont = africas2s.downscale(gcm, obs, method="qm", verbose=False)
     assert cont.dims == ("member", "lat", "lon")
-    terc = deepscale.downscale(gcm, obs, method="qm", variant="parametric",
+    terc = africas2s.downscale(gcm, obs, method="qm", variant="parametric",
                                output_type="tercile", verbose=False)
     assert "tercile" in terc.dims
     np.testing.assert_allclose(terc.sum("tercile").values, 1.0, atol=1e-9)

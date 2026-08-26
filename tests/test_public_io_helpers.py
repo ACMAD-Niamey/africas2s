@@ -1,9 +1,9 @@
 """Tests for the public IO/plotting helpers added in tasks B2+B3+B4.
 
-- B2: deepscale.write_terciles  (verbatim lift of run_pipeline.write_tercile_netcdf)
-- B3: deepscale.tercile_mae     (verbatim lift of metrics.load_probs + metrics.metrics
+- B2: africas2s.write_terciles  (verbatim lift of run_pipeline.write_tercile_netcdf)
+- B3: africas2s.tercile_mae     (verbatim lift of metrics.load_probs + metrics.metrics
                                   avg_probability_mae branch)
-- B4: deepscale.plot_terciles   (re-export of plotting.forecasts.plot_tercile_forecast)
+- B4: africas2s.plot_terciles   (re-export of plotting.forecasts.plot_tercile_forecast)
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-import deepscale
+import africas2s
 
 
 # ---------------------------------------------------------------------------
@@ -26,7 +26,7 @@ def test_write_terciles_roundtrip(tmp_path):
         coords={"tercile": [0, 1, 2], "lat": [0, 1], "lon": [0, 1]},
     )
     p = tmp_path / "t.nc"
-    deepscale.write_terciles(probs, p, title="x", method="m")
+    africas2s.write_terciles(probs, p, title="x", method="m")
     ds = xr.open_dataset(p)
     assert set(ds.data_vars) == {"below", "normal", "above"}
     np.testing.assert_allclose(ds["below"].values, 100 / 3, atol=1e-3)
@@ -50,7 +50,7 @@ def test_write_terciles_renormalizes_and_masks_invalid(tmp_path):
         coords={"tercile": [0, 1, 2], "lat": [0, 1], "lon": [0, 1]},
     )
     p = tmp_path / "t.nc"
-    deepscale.write_terciles(probs, p, title="x")
+    africas2s.write_terciles(probs, p, title="x")
     ds = xr.open_dataset(p)
     # cell (0,0): sums to 0.6 -> renormalized so below/normal/above ~ 33.3/33.3/33.3
     np.testing.assert_allclose(
@@ -79,12 +79,12 @@ def test_tercile_mae_zero_when_equal(tmp_path):
         coords={"tercile": [0, 1, 2], "lat": [0.0, 1.0], "lon": [0.0, 1.0]},
     )
     p = tmp_path / "ref.nc"
-    deepscale.write_terciles(probs, p, title="x")
+    africas2s.write_terciles(probs, p, title="x")
     # Not bit-exact zero: write_terciles encodes to float32 (per the B2 spec),
     # so round-tripping through NetCDF introduces ~1e-6 float32 quantization
     # error. That precision loss is inherent to the on-disk encoding (matches
     # the consumer's own write_tercile_netcdf) and not specific to this lift.
-    assert deepscale.tercile_mae(probs, p) == pytest.approx(0.0, abs=1e-5)
+    assert africas2s.tercile_mae(probs, p) == pytest.approx(0.0, abs=1e-5)
 
 
 def test_tercile_mae_accepts_dataarray_reference():
@@ -95,7 +95,7 @@ def test_tercile_mae_accepts_dataarray_reference():
         coords={"tercile": [0, 1, 2], "lat": [0.0, 1.0, 2.0], "lon": [0.0, 1.0, 2.0]},
     )
     ref_percent = cand * 100.0  # identical up to the *100 scaling -> MAE 0
-    result = deepscale.tercile_mae(cand, ref_percent)
+    result = africas2s.tercile_mae(cand, ref_percent)
     assert result == pytest.approx(0.0, abs=1e-9)
 
 
@@ -105,8 +105,8 @@ def test_tercile_mae_accepts_dataarray_reference():
 
 
 def test_plot_terciles_is_exported():
-    assert hasattr(deepscale, "plot_terciles")
-    from deepscale.plotting.forecasts import plot_tercile_forecast
+    assert hasattr(africas2s, "plot_terciles")
+    from africas2s.plotting.forecasts import plot_tercile_forecast
 
-    assert deepscale.plot_terciles is plot_tercile_forecast
-    assert "plot_terciles" in deepscale.__all__
+    assert africas2s.plot_terciles is plot_tercile_forecast
+    assert "plot_terciles" in africas2s.__all__

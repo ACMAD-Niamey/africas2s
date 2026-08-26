@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from deepscale.aggregations import cessation, onset, season_length
+from africas2s.aggregations import cessation, onset, season_length
 
 
 def _daily(values, start="2015-03-01"):
@@ -114,7 +114,7 @@ def test_a_season_with_no_in_season_data_is_nan_not_a_failed_season():
 def test_onset_and_dry_spell_agree_on_which_years_were_observed():
     """Same record, same seasons. `dry_spell` drops a year with no in-season
     data; `onset` keeps the row but must report it as absent, not as failed."""
-    from deepscale.aggregations import dry_spell
+    from africas2s.aggregations import dry_spell
 
     rain = np.zeros(400)
     rain[0] = 15.0
@@ -383,7 +383,7 @@ def test_season_length_records_both_criteria_that_produced_it():
     assert attrs["cessation_dry_spell_mm"] == 0.5
     assert attrs["season"] == "MAM"                # shared, recorded once
     assert "cessation_season" not in attrs
-    assert "cessation_deepscale_version" not in attrs
+    assert "cessation_africas2s_version" not in attrs
 
 
 def test_season_length_is_nan_when_either_end_is_missing():

@@ -3,7 +3,7 @@ import matplotlib
 matplotlib.use("Agg")
 import numpy as np
 import xarray as xr
-from deepscale.plotting import TercileStyle, render_styled_terciles
+from africas2s.plotting import TercileStyle, render_styled_terciles
 
 
 def _probs():

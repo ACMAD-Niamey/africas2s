@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale.analog import (
+from africas2s.analog import (
     AnalogSet,
     analogs_from_field,
     analogs_from_index,

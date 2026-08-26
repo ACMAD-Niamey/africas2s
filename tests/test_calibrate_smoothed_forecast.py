@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-import deepscale
+import africas2s
 
 SEASONS = ["DJF", "JFM", "FMA", "MAM", "AMJ", "MJJ",
            "JJA", "JAS", "ASO", "SON", "OND", "NDJ"]
@@ -56,10 +56,10 @@ def _members_of(fc, year):
 
 def test_deterministic_forecast_reproduces_hindcast_year():
     fc, ob = _cube()
-    r1 = deepscale.calibrate(fc, ob, method="smoothed_regression",
+    r1 = africas2s.calibrate(fc, ob, method="smoothed_regression",
                              output_type="deterministic", temporal_sigma="constant",
                              forecast_year=2010)
-    r2 = deepscale.calibrate(fc, ob, method="smoothed_regression",
+    r2 = africas2s.calibrate(fc, ob, method="smoothed_regression",
                              output_type="deterministic", temporal_sigma="constant",
                              forecast=_members_of(fc, 2010))
     np.testing.assert_allclose(r2.values, r1.values, rtol=1e-12, atol=1e-12)
@@ -68,10 +68,10 @@ def test_deterministic_forecast_reproduces_hindcast_year():
 @pytest.mark.parametrize("distribution,make", [("normal", _cube), ("gamma", _gamma_cube)])
 def test_tercile_forecast_reproduces_hindcast_year(distribution, make):
     fc, ob = make()
-    r1 = deepscale.calibrate(fc, ob, method="smoothed_regression",
+    r1 = africas2s.calibrate(fc, ob, method="smoothed_regression",
                              output_type="tercile", temporal_sigma="constant",
                              distribution=distribution, forecast_year=2010)
-    r2 = deepscale.calibrate(fc, ob, method="smoothed_regression",
+    r2 = africas2s.calibrate(fc, ob, method="smoothed_regression",
                              output_type="tercile", temporal_sigma="constant",
                              distribution=distribution, forecast=_members_of(fc, 2010))
     np.testing.assert_allclose(r2.values, r1.values, rtol=1e-10, atol=1e-12)
@@ -82,10 +82,10 @@ def test_tercile_forecast_reproduces_hindcast_year(distribution, make):
 def test_deterministic_out_of_sample_responds_to_forecast():
     fc, ob = _cube()
     fcst = _members_of(fc, 2010)
-    lo = deepscale.calibrate(fc, ob, method="smoothed_regression",
+    lo = africas2s.calibrate(fc, ob, method="smoothed_regression",
                              output_type="deterministic", temporal_sigma="constant",
                              forecast=fcst)
-    hi = deepscale.calibrate(fc, ob, method="smoothed_regression",
+    hi = africas2s.calibrate(fc, ob, method="smoothed_regression",
                              output_type="deterministic", temporal_sigma="constant",
                              forecast=fcst + 1.0)
     assert lo.dims == ("season", "lat", "lon")
@@ -103,7 +103,7 @@ def test_tercile_out_of_sample_gamma_probs_valid_and_shifted():
     jitter = xr.DataArray(rng.uniform(0.95, 1.05, (6,) + p90.shape),
                           dims=("member",) + p90.dims, coords={"member": range(6)})
     wet = (p90 * jitter).transpose("season", "member", "lat", "lon")
-    out = deepscale.calibrate(fc, ob, method="smoothed_regression",
+    out = africas2s.calibrate(fc, ob, method="smoothed_regression",
                               output_type="tercile", temporal_sigma="constant",
                               distribution="gamma", forecast=wet)
     assert out.dims == ("season", "tercile", "lat", "lon")
@@ -120,7 +120,7 @@ def test_tercile_out_of_sample_gamma_probs_valid_and_shifted():
 def test_forecast_and_forecast_year_mutually_exclusive():
     fc, ob = _cube()
     with pytest.raises(ValueError, match="mutually exclusive"):
-        deepscale.calibrate(fc, ob, method="smoothed_regression",
+        africas2s.calibrate(fc, ob, method="smoothed_regression",
                             output_type="deterministic",
                             forecast=_members_of(fc, 2010), forecast_year=2010)
 
@@ -128,7 +128,7 @@ def test_forecast_and_forecast_year_mutually_exclusive():
 def test_tercile_forecast_requires_member_dim():
     fc, ob = _cube()
     with pytest.raises(ValueError, match="member"):
-        deepscale.calibrate(fc, ob, method="smoothed_regression",
+        africas2s.calibrate(fc, ob, method="smoothed_regression",
                             output_type="tercile", temporal_sigma="constant",
                             forecast=_members_of(fc, 2010).mean("member"))
 
@@ -137,10 +137,10 @@ def test_forecast_singleton_year_dim_squeezed():
     fc, ob = _cube()
     flat = _members_of(fc, 2010)
     with_year = flat.expand_dims(year=[2026])
-    r_flat = deepscale.calibrate(fc, ob, method="smoothed_regression",
+    r_flat = africas2s.calibrate(fc, ob, method="smoothed_regression",
                                  output_type="deterministic", temporal_sigma="constant",
                                  forecast=flat)
-    r_year = deepscale.calibrate(fc, ob, method="smoothed_regression",
+    r_year = africas2s.calibrate(fc, ob, method="smoothed_regression",
                                  output_type="deterministic", temporal_sigma="constant",
                                  forecast=with_year)
     np.testing.assert_allclose(r_year.values, r_flat.values)
@@ -149,7 +149,7 @@ def test_forecast_singleton_year_dim_squeezed():
 def test_out_of_window_forecast_year_error_points_at_forecast_kwarg():
     fc, ob = _cube()
     with pytest.raises(ValueError, match="forecast="):
-        deepscale.calibrate(fc, ob, method="smoothed_regression",
+        africas2s.calibrate(fc, ob, method="smoothed_regression",
                             output_type="deterministic", forecast_year=2099)
 
 
@@ -158,11 +158,11 @@ def test_out_of_window_forecast_year_error_points_at_forecast_kwarg():
 def test_fit_intersects_predictor_and_obs_years():
     fc, ob = _cube(n_year=26)                  # 1991..2016
     ob = ob.sel(year=slice(1991, 2015))        # obs one year short
-    trimmed = deepscale.calibrate(fc.sel(year=slice(1991, 2015)), ob,
+    trimmed = africas2s.calibrate(fc.sel(year=slice(1991, 2015)), ob,
                                   method="smoothed_regression",
                                   output_type="deterministic",
                                   temporal_sigma="constant", forecast_year=2010)
-    ragged = deepscale.calibrate(fc, ob, method="smoothed_regression",
+    ragged = africas2s.calibrate(fc, ob, method="smoothed_regression",
                                  output_type="deterministic",
                                  temporal_sigma="constant", forecast_year=2010)
     np.testing.assert_allclose(ragged.values, trimmed.values)
@@ -189,11 +189,11 @@ def _pool(*ensembles):
 
 def test_multimodel_tuple_dict_pools_super_ensemble():
     h_a, h_b, f_a, f_b, ob = _two_models()
-    via_dict = deepscale.calibrate({"a": (h_a, f_a), "b": (h_b, f_b)}, ob,
+    via_dict = africas2s.calibrate({"a": (h_a, f_a), "b": (h_b, f_b)}, ob,
                                    method="smoothed_regression",
                                    output_type="tercile", temporal_sigma="constant",
                                    distribution="gamma")
-    manual = deepscale.calibrate(_pool(h_a, h_b), ob,
+    manual = africas2s.calibrate(_pool(h_a, h_b), ob,
                                  method="smoothed_regression",
                                  output_type="tercile", temporal_sigma="constant",
                                  distribution="gamma", forecast=_pool(f_a, f_b))
@@ -202,11 +202,11 @@ def test_multimodel_tuple_dict_pools_super_ensemble():
 
 def test_multimodel_separate_forecast_dict_matches_tuple_form():
     h_a, h_b, f_a, f_b, ob = _two_models()
-    tuple_form = deepscale.calibrate({"a": (h_a, f_a), "b": (h_b, f_b)}, ob,
+    tuple_form = africas2s.calibrate({"a": (h_a, f_a), "b": (h_b, f_b)}, ob,
                                      method="smoothed_regression",
                                      output_type="tercile", temporal_sigma="constant",
                                      distribution="gamma")
-    dict_form = deepscale.calibrate({"a": h_a, "b": h_b}, ob,
+    dict_form = africas2s.calibrate({"a": h_a, "b": h_b}, ob,
                                     method="smoothed_regression",
                                     output_type="tercile", temporal_sigma="constant",
                                     distribution="gamma",
@@ -219,7 +219,7 @@ def test_multimodel_embedded_forecasts_conflict_with_forecast_year():
     # silently calibrate the forecast while claiming a retro target
     h_a, h_b, f_a, f_b, ob = _two_models()
     with pytest.raises(ValueError, match="mutually exclusive"):
-        deepscale.calibrate({"a": (h_a, f_a), "b": (h_b, f_b)}, ob,
+        africas2s.calibrate({"a": (h_a, f_a), "b": (h_b, f_b)}, ob,
                             method="smoothed_regression",
                             output_type="deterministic",
                             temporal_sigma="constant", forecast_year=2010)
@@ -227,11 +227,11 @@ def test_multimodel_embedded_forecasts_conflict_with_forecast_year():
 
 def test_multimodel_hindcast_only_dict_with_forecast_year():
     h_a, h_b, _f_a, _f_b, ob = _two_models()
-    via_dict = deepscale.calibrate({"a": h_a, "b": h_b}, ob,
+    via_dict = africas2s.calibrate({"a": h_a, "b": h_b}, ob,
                                    method="smoothed_regression",
                                    output_type="deterministic",
                                    temporal_sigma="constant", forecast_year=2010)
-    manual = deepscale.calibrate(_pool(h_a, h_b), ob,
+    manual = africas2s.calibrate(_pool(h_a, h_b), ob,
                                  method="smoothed_regression",
                                  output_type="deterministic",
                                  temporal_sigma="constant", forecast_year=2010)

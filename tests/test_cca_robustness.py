@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from deepscale.methods.cca import _project_by_sv, _SV_RTOL, CCAMethod
+from africas2s.methods.cca import _project_by_sv, _SV_RTOL, CCAMethod
 
 
 # ---- _project_by_sv: the numerical guard --------------------------------------------
@@ -77,7 +77,7 @@ def test_leverage_average_skips_nonfinite():
     # Exercise the real averaging helper from pipelines/seasonal.py (a per-year mean that
     # drops non-finite entries, and is a plain mean when all are finite) — not a local copy,
     # so a regression in the shipped code path is actually caught.
-    from deepscale.pipelines.seasonal import _average_leverages as avg
+    from africas2s.pipelines.seasonal import _average_leverages as avg
 
     healthy = {"a": [0.1, 0.2, 0.3], "b": [0.3, 0.2, 0.1]}
     assert avg(healthy) == [0.2, 0.2, 0.2]                     # identical to plain mean

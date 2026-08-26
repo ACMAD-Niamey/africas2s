@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from deepscale.climate import (
+from africas2s.climate import (
     accumulate,
     frequency_below,
     percentile_of,

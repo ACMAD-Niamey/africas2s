@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from deepscale.methods import smoothed_regression as pb
+from africas2s.methods import smoothed_regression as pb
 
 
 def test_fit_ab_constrained_recovers_amplitude():
@@ -15,7 +15,7 @@ def test_fit_ab_constrained_recovers_amplitude():
 
 
 def test_fit_ab_unconstrained_not_worse_than_raw_crps():
-    from deepscale.metrics.crpss import crps_normal
+    from africas2s.metrics.crpss import crps_normal
     rng = np.random.default_rng(1); n = 2000
     signal = rng.standard_normal(n); mu_f = signal; sigma_f = np.full(n, 1.0)
     o = 0.5 * signal + 0.2 * rng.standard_normal(n)

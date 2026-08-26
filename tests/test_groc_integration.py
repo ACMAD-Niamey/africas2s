@@ -24,7 +24,7 @@ def perfect_tercile_fixture():
         dims=["year", "lat", "lon"], coords=coords,
     )
 
-    from deepscale.metrics.rpss import _cpt_boundaries
+    from africas2s.metrics.rpss import _cpt_boundaries
     obs_vals = obs.values
     t33, t67 = _cpt_boundaries(obs_vals)
     obs_cat = np.where(t33 > obs_vals, 0, np.where(t67 > obs_vals, 1, 2))
@@ -40,7 +40,7 @@ def perfect_tercile_fixture():
 
 def test_skill_includes_generalized_roc(perfect_tercile_fixture):
     """skill(metrics=['generalized_roc']) returns a finite [0,1] score; perfect → 1.0."""
-    from deepscale.skill import skill
+    from africas2s.skill import skill
 
     forecast, obs = perfect_tercile_fixture
     report = skill(forecast, obs, metrics=["generalized_roc"])
