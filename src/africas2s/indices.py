@@ -169,6 +169,14 @@ _INDICES: dict[str, _Spec] = {
             "short rains."
         ),
     ),
+    "eio": _Spec(
+        ("setio",), lambda r: r["setio"], transform="raw", weights="cos_lat",
+        description=(
+            "Eastern Indian Ocean SST in absolute units (the IOD eastern pole box). "
+            "The counterpart to `wio`: together they carry the two poles as "
+            "temperatures, where `dmi` carries only their anomaly difference."
+        ),
+    ),
     "wpac": _Spec(
         ("wpac",), lambda z: z["wpac"],
         description=(

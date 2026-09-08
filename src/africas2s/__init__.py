@@ -9,6 +9,10 @@ from .pipelines import seasonal_mme, SeasonalMMEResult
 from .indices import Index
 from .calibrate import calibrate, CalibrateResult, LogitConfig
 from .climate import (
+    LEAD_WINDOWS_S2S,
+    doy_anomaly,
+    doy_climatology,
+    lead_window_reduce,
     accumulate,
     frequency_below,
     percent_of_normal,
@@ -64,6 +68,10 @@ __all__ = [
     "percent_of_normal",
     "percentile_of",
     "rank_of_record",
+    "LEAD_WINDOWS_S2S",
+    "doy_anomaly",
+    "doy_climatology",
+    "lead_window_reduce",
     "seasonal_reduce",
     "seasonal_stack",
     "AnalogSet",
