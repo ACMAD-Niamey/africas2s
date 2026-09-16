@@ -31,6 +31,7 @@ from .._optional import require_optional
 from .forecasts import (
     _HINT,
     _align_bool_mask,
+    _no_dominant_label,
     plot_field,
     plot_tercile_forecast,
     region_masks,
@@ -117,9 +118,22 @@ def _declutter(ax, is_geo):
         # (>=0.25); duck-type on the label flags rather than the class.
         liners = list(getattr(ax, "_gridliners", [])) + [
             a for a in ax.artists if hasattr(a, "top_labels")]
+        # Switching every label flag off on a labelled gridliner leaves cartopy
+        # 0.25 (with matplotlib 3.11) reporting a NaN tight bounding box for the
+        # axes, which then crops any bbox_inches="tight" save -- and the
+        # notebook inline render -- to the legend's width. Replace the labelled
+        # gridliner with an unlabelled one instead; the faint grid stays.
         for gl in liners:
-            gl.top_labels = gl.bottom_labels = False
-            gl.left_labels = gl.right_labels = False
+            try:
+                gl.remove()
+            except (NotImplementedError, ValueError, AttributeError):
+                try:
+                    ax._gridliners.remove(gl)
+                except (AttributeError, ValueError):
+                    gl.top_labels = gl.bottom_labels = False
+                    gl.left_labels = gl.right_labels = False
+        if liners:
+            ax.gridlines(draw_labels=False, linewidth=0.3, color="#777777", alpha=0.5)
     else:
         ax.set_xticks([])
         ax.set_yticks([])
@@ -161,6 +175,7 @@ def tercile_legend_handles(style=None, *, variable_kind="precip", detailed=False
 
     if include_dry is None:
         include_dry = style.dry_mask is not None
+    no_dominant = _no_dominant_label(style)
 
     if not detailed:
         handles = [
@@ -174,6 +189,9 @@ def tercile_legend_handles(style=None, *, variable_kind="precip", detailed=False
         if include_dry:
             handles.append(Patch(facecolor=style.dry_color, edgecolor="#666666",
                                  linewidth=0.3, label=dry_label))
+        if no_dominant:
+            handles.append(Patch(facecolor=style.nodata_color, edgecolor="#666666",
+                                 linewidth=0.3, label=no_dominant))
         return handles
 
     def _band(lo, hi):
@@ -190,6 +208,9 @@ def tercile_legend_handles(style=None, *, variable_kind="precip", detailed=False
     if include_dry:
         handles.append(Patch(facecolor=style.dry_color, edgecolor="#666666",
                              linewidth=0.3, label=dry_label))
+    if no_dominant:
+        handles.append(Patch(facecolor=style.nodata_color, edgecolor="#666666",
+                             linewidth=0.3, label=no_dominant))
     return handles
 
 
@@ -292,9 +313,10 @@ def _plot_grid(entries, *, emphasize=None, style=None, ncols=3, skill_mask=None,
             # dry patch's column with invisible spacers to keep columns aligned.
             n_bins = len(style.prob_bins) - 1
             leg_ncol = 3
-            if len(handles) > 3 * n_bins:            # dry patch appended
+            extra = len(handles) - 3 * n_bins        # dry / no-dominant patches
+            if extra > 0:
                 spacer = Patch(facecolor="none", edgecolor="none", label="")
-                handles.extend([spacer] * (n_bins - 1))
+                handles.extend([spacer] * ((-extra) % n_bins))
                 leg_ncol = 4
         else:
             leg_ncol = min(len(handles), 4)

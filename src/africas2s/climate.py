@@ -121,9 +121,11 @@ def seasonal_stack(
         kept.append(year)
 
     stacked = xr.concat(slices, dim=pd.Index(kept, name="year"))
-    return stacked.assign_coords(
-        season_start=("year", [season_times(season, y, cadence)[0] for y in kept])
-    )
+    # Built at ns precision explicitly: season_times returns day-precision
+    # stamps, and older xarray warns when it has to widen them itself.
+    starts = np.asarray([season_times(season, y, cadence)[0] for y in kept],
+                        dtype="datetime64[ns]")
+    return stacked.assign_coords(season_start=("year", starts))
 
 
 def seasonal_reduce(da, months, *, how="sum", time_dim="time"):

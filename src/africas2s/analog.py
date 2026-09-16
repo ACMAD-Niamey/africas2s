@@ -21,6 +21,10 @@ Four ways to say it, all returning the same :class:`AnalogSet`:
 ``analogs_where``
     A boolean predicate over years, for criteria that are thresholds rather
     than distances ("every year whose Niño3.4 exceeded 0.5").
+``analogs_from_evolution``
+    Nearest neighbours in the *evolution* of an index through the year — the
+    shape of the Niño3.4 curve rather than its value in one month — scored on
+    only the part of the target year that has actually been observed.
 
 They compose. ``&`` intersects, ``|`` unions, and ``.top(n)`` truncates, so a
 compound criterion — strong El Niño *and* rapid onset — is an expression rather
@@ -47,6 +51,7 @@ __all__ = [
     "analogs_from_years",
     "analogs_from_index",
     "analogs_from_field",
+    "analogs_from_evolution",
     "analogs_where",
 ]
 
@@ -55,6 +60,7 @@ __all__ = [
 # `&` and `|` mean the same thing regardless of how comparability was defined.
 _FIELD_METRICS = ("rmse", "mae", "correlation", "anomaly_correlation")
 _INDEX_METRICS = ("absolute", "squared", "signed")
+_EVOLUTION_METRICS = ("rank_sum", "correlation", "mad")
 
 
 @dataclass(frozen=True)
@@ -408,6 +414,116 @@ def analogs_from_field(
         {"selector": "field", "metric": metric, "target_year": target_year,
          "region": region,
          "weights": weights if weights is None or isinstance(weights, str) else "custom"},
+    )
+
+
+def _ordinal_rank(values: np.ndarray) -> np.ndarray:
+    """0-based rank of each value, ascending, ties broken by position."""
+    order = np.argsort(values, kind="stable")
+    rank = np.empty(len(values), dtype=float)
+    rank[order] = np.arange(len(values))
+    return rank
+
+
+def analogs_from_evolution(
+    curves: xr.DataArray,
+    *,
+    target_year: int,
+    n: int | None = None,
+    metric: str = "rank_sum",
+    candidates=None,
+    min_steps: int = 2,
+) -> AnalogSet:
+    """Rank years by how closely an index *evolved* the way it has this year.
+
+    The GHACOF / PRESAC analogue rule: build each year's Niño3.4 (or any
+    index) curve, compare the shape of this year's curve against every past
+    year's on the months that have actually been observed, and combine a
+    correlation ranking (does it move the same way?) with a mean-absolute-
+    difference ranking (is it at the same level?).
+
+    Parameters
+    ----------
+    curves : xr.DataArray
+        ``(year, step)`` — one curve per year, e.g.
+        ``seasonal_stack(oni, (1, 12), cadence="monthly")``. A partly observed
+        year carries NaN in the steps not yet reached; only the steps the
+        target year has are scored, so every candidate is compared on the
+        same footing.
+    target_year : int
+        The year whose evolution is being matched.
+    n : int, optional
+        How many analogs to keep. ``None`` keeps every scored year, ranked.
+    metric : {"rank_sum", "correlation", "mad"}
+        ``"rank_sum"`` (default) sums the ordinal rank by correlation and the
+        ordinal rank by mean absolute difference, so the best analog both
+        tracks and sits near the target; ``"correlation"`` scores ``1 - r``;
+        ``"mad"`` the mean absolute difference alone. All are distance-like.
+    candidates : sequence of int, optional
+        Restrict the pool. As for the other selectors, ``target_year`` is not
+        excluded automatically (it is its own perfect analog); pass
+        ``candidates`` to leave it out.
+    min_steps : int, default 2
+        The fewest observed steps the target may have; fewer raises.
+
+    Returns
+    -------
+    AnalogSet
+        ``metadata`` carries ``r`` and ``mad`` per scored year, ``n_steps``
+        (how many steps were compared — a correlation over six points is
+        weaker evidence than one over twelve) and ``steps`` (which ones).
+    """
+    if not {"year", "step"} <= set(curves.dims):
+        raise ValueError(
+            f"curves must have 'year' and 'step' dims, got {tuple(curves.dims)}")
+    if metric not in _EVOLUTION_METRICS:
+        raise ValueError(f"metric must be one of {_EVOLUTION_METRICS}, got {metric!r}")
+    curves = curves.transpose("year", "step")
+    years = np.asarray(curves.year.values)
+    if target_year not in years:
+        raise ValueError(f"target_year {target_year} is not in curves.year")
+
+    values = np.asarray(curves.values, dtype=float)
+    target = values[years == target_year][0]
+    have = np.isfinite(target)
+    if int(have.sum()) < min_steps:
+        raise ValueError(
+            f"target year {target_year} has only {int(have.sum())} observed "
+            f"step(s); at least {min_steps} are needed to compare an evolution")
+    t = target[have]
+
+    r = np.full(len(years), np.nan)
+    mad = np.full(len(years), np.nan)
+    for i, row in enumerate(values):
+        c = row[have]
+        if not np.isfinite(c).all():
+            continue                      # candidate missing an observed step
+        mad[i] = float(np.abs(t - c).mean())
+        if np.std(t) > 0 and np.std(c) > 0:
+            r[i] = float(np.corrcoef(t, c)[0, 1])
+    scored = np.isfinite(mad) & np.isfinite(r)
+
+    scores = np.full(len(years), np.nan)
+    if metric == "correlation":
+        scores[scored] = 1.0 - r[scored]
+    elif metric == "mad":
+        scores[scored] = mad[scored]
+    else:
+        scores[scored] = (_ordinal_rank(-r[scored]) + _ordinal_rank(mad[scored]))
+
+    scores = xr.DataArray(scores, dims="year", coords={"year": years},
+                          name="analog_score")
+    scores = _restrict(scores, candidates)
+    kept = scores.notnull().values
+    return AnalogSet(
+        _rank_and_take(scores, n), scores,
+        {"selector": "evolution", "metric": metric, "target_year": int(target_year),
+         "n_steps": int(have.sum()),
+         "steps": [s.item() if hasattr(s, "item") else s
+                   for s in np.asarray(curves.step.values)[have]],
+         "r": {int(y): float(v) for y, v, k in zip(years, r, kept) if k},
+         "mad": {int(y): float(v) for y, v, k in zip(years, mad, kept) if k},
+         "index": curves.name},
     )
 
 

@@ -1,11 +1,12 @@
 """Reusable styling for tercile-forecast maps (palette + masks + clip + lakes).
 
 Region-agnostic: callers supply the discrete palette, probability-bin edges, and
-optional dry/country/lake styling. Nothing here encodes a specific region or
-outlook convention — institutional colour languages (GHACOF, ACMAD, ...) live
-in JSON style files owned by the workflows that use them and load via
-:meth:`TercileStyle.from_json`; `examples/styles/` in the repository carries
-reference copies of the two in current operational use.
+optional dry/country/lake styling. Nothing here encodes a specific region.
+Institutional colour languages ship as JSON style files inside the package
+(``plotting/styles/``: ``icpac`` — the default — ``icpac-temperature``,
+``noaa-nmme``, ``ghacof``, ``acmad``) and load by name via
+:meth:`TercileStyle.named`; a workflow that owns its own palette loads it from
+a file of the same shape via :meth:`TercileStyle.from_json`.
 """
 from __future__ import annotations
 
@@ -19,6 +20,11 @@ from typing import Any
 from .._optional import require_optional
 
 _HINT = "pip install africas2s[plotting]"
+
+# Packaged institutional colour languages, one JSON file each. ``icpac`` is the
+# default of ``TercileStyle.named()``.
+_STYLES_DIR = Path(__file__).resolve().parent / "styles"
+_DEFAULT_NAMED = "icpac"
 
 
 @dataclass
@@ -41,6 +47,12 @@ class TercileStyle:
     lake_color: str = "#78b8f8"
     nodata_color: str = "#ffffff"
     extent: Any = None                     # (lon_w, lon_e, lat_s, lat_n)
+    secondary_max: Any = None              # percent. When set, a cell shows its leading
+                                            # category only if every OTHER category is
+                                            # under this value; contested cells render
+                                            # as nodata ("no dominant category"). The
+                                            # NMME rule is 38% leading (prob_bins[0])
+                                            # with the rest under 33.
 
     def __post_init__(self):
         n = len(self.prob_bins) - 1
@@ -83,6 +95,38 @@ class TercileStyle:
                 f"valid fields are {sorted(valid)}")
         data.update(overrides)
         return cls(**data)
+
+    @classmethod
+    def named(cls, name=_DEFAULT_NAMED, **overrides):
+        """Build one of the colour languages shipped with the package.
+
+        ``name`` is a key of :meth:`list_named` — ``"icpac"`` (the default:
+        ICPAC's rainfall palette, six 40–100 % bands), ``"icpac-temperature"``,
+        ``"noaa-nmme"`` (the NOAA CPC NMME tercile-summary rules as used by
+        CAPC-AC: 38 % leading / others under 33 %, blue wet, orange dry, green
+        normal), ``"ghacof"`` (the GHACOF outlook graphics) or ``"acmad"``.
+        Keyword ``overrides`` behave exactly as in :meth:`from_json`: they carry
+        the fields JSON cannot hold (``dry_mask``, a geometry ``clip_to``) and
+        win over the file::
+
+            style = TercileStyle.named("noaa-nmme", dry_mask=too_dry,
+                                       clip_to=ECCAS, extent=(6, 32, -18, 24))
+
+        Unknown names raise ``ValueError`` listing what is available.
+        """
+        path = _STYLES_DIR / f"{name}.json"
+        if not path.exists():
+            raise ValueError(
+                f"unknown style {name!r}; available: {sorted(cls.list_named())}")
+        return cls.from_json(path, **overrides)
+
+    @classmethod
+    def list_named(cls):
+        """``{name: provenance}`` for every packaged style."""
+        out = {}
+        for path in sorted(_STYLES_DIR.glob("*.json")):
+            out[path.stem] = json.loads(path.read_text()).get("_provenance", "")
+        return out
 
 
 def tercile_diverging_cmap(style, *, name="tercile_diverging", n=256):

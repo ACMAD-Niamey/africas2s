@@ -9,7 +9,7 @@ admin-unit `(…, region)` aggregation, or on a single station series `(…,)`.
 
 | Module | Top-level exports | Role |
 |---|---|---|
-| `africas2s.analog` | `AnalogSet`, `analogs_from_years`, `analogs_from_index`, `analogs_from_field`, `analogs_where` | *Which* past years are analogs |
+| `africas2s.analog` | `AnalogSet`, `analogs_from_years`, `analogs_from_index`, `analogs_from_field`, `analogs_from_evolution`, `analogs_where` | *Which* past years are analogs |
 | `africas2s.climate` | `seasonal_stack`, `seasonal_reduce`, `accumulate`, `percentile_of`, `percent_of_normal`, `frequency_below`, `rank_of_record` | Season aggregation + positioning a value in a record |
 | `africas2s.completion` | `complete`, `CompletionResult` | Splice observed + forecast + analog remainders into scenarios |
 | `africas2s.series` | `quantile_map`, `error_bounds`, `ErrorBounds` | Bias-correct / bracket a scalar forecast *series* |
@@ -84,6 +84,23 @@ spatial centring — this is what distinguishes ACC from spatial Pearson). `regi
 `[lat_s, lat_n, lon_w, lon_e]` (or a shapefile/geometry, which requires Rosetta). `weights` ∈
 `"cos_lat"` (default — otherwise tall regions are dominated by high-latitude cells), `None`, or
 an `xr.DataArray`. Nothing here is SST-specific.
+
+```python
+analogs_from_evolution(curves, *, target_year, n=None, metric="rank_sum",
+                       candidates=None, min_steps=2) -> AnalogSet
+```
+Rank years by how closely an index *evolved* the way it has this year — the shape of the
+Niño3.4 curve through the calendar rather than its value in one month (the GHACOF / PRESAC
+analogue rule). `curves` is `(year, step)`, e.g. `seasonal_stack(oni, (1, 12), cadence="monthly")`
+for twelve overlapping-season ONI values per year; a partly observed target year carries NaN
+in the steps not yet reached and **only the steps it has are scored**, so every candidate is
+compared on the same footing (a candidate missing one of those steps is excluded). `metric`
+∈ `"rank_sum"` (default: ordinal rank by correlation plus ordinal rank by mean absolute
+difference — the best analog both tracks and sits near the target), `"correlation"` (`1 − r`),
+`"mad"`. As for the other selectors `target_year` is not excluded automatically; pass
+`candidates` to leave it out. `metadata` carries `r` and `mad` per scored year, `n_steps` (a
+correlation over six points is weaker evidence than one over twelve) and `steps`. Plot it
+with `ds.plot_index_evolution(curves, analogs, labels=...)`.
 
 ```python
 analogs_where(condition, *, scores=None) -> AnalogSet

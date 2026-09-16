@@ -1,0 +1,12 @@
+{
+  "_provenance": "ICPAC temperature colour scheme from the same 'RCC Climate Forecast Colormap Palettes' sheet as icpac.json: cooler-than-normal blues, near-normal cyans, warmer-than-normal yellow-to-dark-red. Same 40-100% bands. Use with variable_kind='temp'.",
+  "_usage": "africas2s.TercileStyle.named('icpac-temperature', clip_to=..., extent=...)",
+  "below_colors":  ["#E6F2FF", "#B3D9FF", "#66B2FF", "#1A75CF", "#004C99", "#003366"],
+  "normal_colors": ["#E5FFFF", "#CCFFFF", "#99FFFF", "#7FFFFF", "#66FFFF", "#33FFFF"],
+  "above_colors":  ["#FFE400", "#FFCC00", "#FF8B00", "#FF6600", "#FF0000", "#B30000"],
+  "prob_bins": [40, 50, 60, 70, 80, 90, 100.01],
+  "dry_color": "#BEBEBE",
+  "lakes": true,
+  "lake_color": "#73B2FF",
+  "nodata_color": "#FFFFFF"
+}

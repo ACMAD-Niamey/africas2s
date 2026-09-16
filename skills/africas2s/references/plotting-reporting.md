@@ -38,11 +38,12 @@ ds.plot_choropleth(...)          # = plotting.maps.plot_choropleth
 ds.natural_earth_borders(...)    # = plotting.maps.natural_earth_borders
 ds.plot_accumulation_scenarios(...)  # = plotting.scenarios.plot_accumulation_scenarios
 ds.plot_index_scatter(...)           # = plotting.scenarios.plot_index_scatter
+ds.plot_index_evolution(...)        # = plotting.scenarios.plot_index_evolution
 ds.plot_matrix(...)                  # = plotting.panels.plot_matrix
 ds.plot_components_objective(...)    # = plotting.panels.plot_components_objective
 ds.tercile_legend_handles(...)       # = plotting.panels.tercile_legend_handles
 ds.region_masks(...)                 # = plotting.forecasts.region_masks
-ds.TercileStyle                      # = plotting.style.TercileStyle (.from_json)
+ds.TercileStyle                      # = plotting.style.TercileStyle (.named / .from_json)
 ds.tercile_diverging_cmap(...)       # = plotting.style.tercile_diverging_cmap
 ```
 
@@ -123,19 +124,38 @@ probability band (`detailed=True`); `include_dry` defaults to whether the
 style carries a `dry_mask`.
 
 ```python
+TercileStyle.named(name="icpac", **overrides) -> TercileStyle
+TercileStyle.list_named() -> {name: provenance}
 TercileStyle.from_json(path, **overrides) -> TercileStyle
 tercile_diverging_cmap(style, *, name="tercile_diverging", n=256) -> Colormap
     # strongest-below → white → strongest-above ramp for anomaly/tilt/skill panels
 ```
-Institutional colour languages are NOT hardcoded in the package: each workflow
-owns its palette as a JSON file of `TercileStyle` fields and loads it with
-`from_json`; keyword overrides win and carry the non-JSON fields
-(`TercileStyle.from_json("ghacof.json", dry_mask=too_dry, clip_to=IGAD,
-extent=(21, 52, -13, 23))`). Keys starting with `_` are comments; unknown keys
-raise. Reference copies of the two operational languages ship in
-`examples/styles/`: `ghacof.json` (ICPAC/GHACOF: yellow/cyan/green, 5 bands,
-lakes on) and `acmad.json` (ACMAD: orange/grey/green, 6 bands with the
-33.33–36 extra step).
+Institutional colour languages ship inside the package as JSON style files
+(`src/africas2s/plotting/styles/`) and load by name with `named()`; `icpac` is
+the default when no name is given. Keyword overrides win and carry the
+non-JSON fields (`TercileStyle.named("noaa-nmme", dry_mask=too_dry,
+clip_to=ECCAS, extent=(6, 32, -18, 24))`).
+
+| name | what it is |
+|---|---|
+| `icpac` (default) | ICPAC rainfall scheme + criteria from the RCC colormap sheet: orange→red below, cyan near-normal, green above; six bands 40-50 … 90-100 %; a leading category under 40 % is white ("no dominant category"); dry mask `#BEBEBE`, lakes `#73B2FF` |
+| `icpac-temperature` | the same sheet's temperature ramps (blues cooler, cyans near, yellow→dark-red warmer); use with `variable_kind="temp"` |
+| `noaa-nmme` | the NOAA CPC NMME tercile-summary display rules as relayed by CAPC-AC: dominant only if leading > 38 % **and** the opposite outer tercile < 33 % (`secondary_max=33`) — a near-normal runner-up does not blank an outer tercile, while a leading near-normal needs both outers under 33 % — else white; blue wet, orange dry, green normal; grey dry season. The rules name colours, not hex values — the ramps are standard sequential Blues/Oranges/Greens, banded 38-50-60-70-80-90-100 |
+| `ghacof` | the GHACOF outlook graphics (yellow/cyan/green, 5 bands from 33.3 %, lakes on) — the language the ICPAC MAM/OND and CAPC-AC AMJJ replications used |
+| `acmad` | ACMAD continental palette (orange/grey/green, 6 bands with the 33.33–36 extra step) |
+
+A workflow that owns its own palette keeps it as a JSON file of the same shape
+and loads it with `from_json(path, **overrides)`. Keys starting with `_` are
+comments; unknown keys raise. `examples/styles/` carries copies of `ghacof.json`
+and `acmad.json` as templates.
+
+**Dominance rules.** Two style fields decide when a valid cell is left white:
+the first `prob_bins` edge (the leading probability must reach it — with the
+GHACOF/ACMAD 33.3 edge that is always true, with 40 or 38 it is a real
+threshold) and `secondary_max` (when set, the non-leading OUTER tercile(s) must be
+under it). Both the cell-based and the `smooth=` contour renderers honour them,
+and the legends (`legend_detailed=True`, `tercile_legend_handles`) gain a white
+"No dominant category" patch whenever a rule can leave a cell unfilled.
 
 ## General field maps, choropleths, and monitoring plots
 
@@ -202,6 +222,23 @@ the analogs) draws heavier annotated markers (`highlight_color` fills them, else
 `ErrorBounds` or `(lower, upper)` pair — brackets it. `trendline` adds an OLS fit (with R² if
 `trendline_annotate`). Returns a `Figure`.
 
+## Index evolution plume
+
+```python
+plot_index_evolution(curves, analogs=None, *, target_year=None, highlight=None,
+                     labels=None, colors=None, ax=None, title=None, ylabel=None,
+                     zero_line=True, figsize=(11, 4.6)) -> Figure
+```
+The "which past years looked like this one" plume: every year's index curve in
+grey, the analog years in colour (best first), the target year in black over
+the steps it has actually reached (markers on each observed step, "(to date)"
+in the legend when partial). `curves` is the `(year, step)` array
+`ds.analogs_from_evolution` scored — e.g. `ds.seasonal_stack(oni, (1, 12),
+cadence="monthly")` — and when `analogs` came from that selector the legend
+annotates each analog with its `r` and `mad`. `labels` names the steps (the
+twelve overlapping-season codes `DJF … NDJ` for an ONI curve); `highlight`
+colours years without an `AnalogSet`; `zero_line=False` for an absolute index.
+
 ## Diagnostics
 
 ```python
@@ -218,15 +255,18 @@ plot_cca_modes(cca_fit, n_modes=3)
 @dataclass
 class TercileStyle:
     below_colors: list[str]; normal_colors: list[str]; above_colors: list[str]
-    prob_bins: list[float]        # percent edges; len == n_colors + 1
+    prob_bins: list[float]        # percent edges; len == n_colors + 1; a leading
+                                  # probability under prob_bins[0] is "no dominant category"
     dry_mask = None; dry_color = "#bebebe"
     clip_to = None                # list of country NAMEs or a shapely geometry
     lakes = False; lake_color = "#78b8f8"
     nodata_color = "#ffffff"
     extent = None                 # (lon_w, lon_e, lat_s, lat_n)
+    secondary_max = None          # percent; when set, the NON-leading OUTER tercile(s) must be
+                                  # under it for the cell to be filled (NMME: 33)
 ```
 
-Pass as `style=` to the tercile plotting functions to control palette, probability binning, dry masking, country clipping, lakes, and extent. `TercileStyle.from_json(path, **overrides)` builds one from a JSON style file a workflow owns (see "Panel grids, composites, and style files").
+Pass as `style=` to the tercile plotting functions to control palette, probability binning, dominance rules, dry masking, country clipping, lakes, and extent. `TercileStyle.named(name="icpac", **overrides)` builds one of the packaged colour languages (`icpac`, `icpac-temperature`, `noaa-nmme`, `ghacof`, `acmad`; `list_named()` enumerates them); `TercileStyle.from_json(path, **overrides)` builds one from a JSON style file a workflow owns (see "Panel grids, composites, and style files").
 
 ## Reports
 

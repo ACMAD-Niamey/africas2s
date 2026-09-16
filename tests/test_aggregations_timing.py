@@ -1,4 +1,6 @@
 """Onset, cessation and season length."""
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -412,3 +414,19 @@ def test_cessation_absent_when_the_season_never_dries():
     assert float(on.step.sel(year=2015)) == 20.0
     assert np.isnan(float(ces.step.sel(year=2015)))
     assert float(ces.occurred.sel(year=2015)) == 0.0
+
+
+def test_onset_dates_need_no_precision_conversion():
+    """TimingResult.date must be built at nanosecond precision.
+
+    _resolve_dates turned the step field into timedelta64[D] before adding it
+    to season_start; that day-precision intermediate is what xarray warned
+    about, once per onset() call.
+    """
+    rain = _mam_2015_with_false_start()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = onset(_daily(rain), "MAM")
+    assert [str(w.message) for w in caught
+            if "non-nanosecond precision timedelta" in str(w.message)] == []
+    assert result.date.dtype == np.dtype("datetime64[ns]")

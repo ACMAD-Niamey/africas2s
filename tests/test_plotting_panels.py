@@ -583,3 +583,60 @@ def test_smooth_falls_back_on_tiny_grids():
     assert im is not None            # linear fallback, no cubic crash
     assert _refine_field(np.ones((1, 8)), [0.0], np.arange(8.0), 3) is None
     plt.close("all")
+
+
+# ------------------------------------------------------- tight bbox stays finite
+
+def test_panel_grid_tight_bbox_is_finite():
+    """cartopy 0.25 reports a NaN tight bbox once a labelled gridliner has all
+    its labels switched off, which cropped every tight save and inline render
+    of a panel grid to the legend's width. The grid must stay measurable."""
+    pytest.importorskip("cartopy")
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from africas2s import plot_matrix
+
+    fig = plot_matrix({"a": _probs(0), "b": _probs(1)}, style=_ghacof(), ncols=2,
+                      smooth=2, legend_detailed=True, suptitle="t")
+    renderer = fig.canvas.get_renderer()
+    for ax in fig.axes[:2]:
+        assert np.all(np.isfinite(ax.get_tightbbox(renderer).bounds))
+    tight = fig.get_tightbbox(renderer)
+    assert np.all(np.isfinite(tight.bounds))
+    # and every panel lies inside that box (in inches), i.e. a tight save
+    # keeps the maps rather than cropping to the legend
+    for ax in fig.axes[:2]:
+        panel = ax.get_window_extent(renderer).transformed(fig.dpi_scale_trans.inverted())
+        assert panel.x0 >= tight.x0 - 0.05 and panel.x1 <= tight.x1 + 0.05
+        assert panel.y0 >= tight.y0 - 0.05 and panel.y1 <= tight.y1 + 0.05
+    plt.close(fig)
+
+
+def test_standalone_map_tight_bbox_is_finite():
+    """Same cartopy 0.25 caveat for a single plot_field / plot_terciles panel:
+    the basemap must not toggle gridline-label sides off after creation."""
+    pytest.importorskip("cartopy")
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import cartopy.crs as ccrs
+    from africas2s import plot_field, plot_terciles
+
+    fig, axes = plt.subplots(1, 2, figsize=(8, 4), layout="constrained",
+                             subplot_kw={"projection": ccrs.PlateCarree()})
+    im = plot_field(_field(), ax=axes[0], style=_ghacof(), smooth=2,
+                    levels=[-2, -1, 0, 1, 2], title="f")
+    fig.colorbar(im, ax=axes[0], shrink=0.7)
+    plot_terciles(_probs(), style=_ghacof(), ax=axes[1], smooth=2, legend=False)
+    renderer = fig.canvas.get_renderer()
+    fig.draw(renderer)
+    for ax in axes:
+        assert np.all(np.isfinite(ax.get_tightbbox(renderer).bounds))
+    tight = fig.get_tightbbox(renderer)
+    assert np.all(np.isfinite(tight.bounds))
+    for ax in axes:
+        panel = ax.get_window_extent(renderer).transformed(fig.dpi_scale_trans.inverted())
+        assert panel.x0 >= tight.x0 - 0.05 and panel.x1 <= tight.x1 + 0.05
+        assert panel.y0 >= tight.y0 - 0.05 and panel.y1 <= tight.y1 + 0.05
+    plt.close(fig)

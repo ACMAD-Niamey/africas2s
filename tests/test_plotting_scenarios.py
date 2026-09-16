@@ -295,3 +295,53 @@ def test_accumulation_colours_each_scenario_and_labels_it_by_year(result):
     labels = [t.get_text() for t in legend.get_texts()]
     for yr in ("1997", "2005", "2015"):
         assert yr in labels
+
+
+# --- plot_index_evolution --------------------------------------------------
+
+from africas2s.analog import analogs_from_evolution  # noqa: E402
+from africas2s.plotting.scenarios import plot_index_evolution  # noqa: E402
+
+MON = ["DJF", "JFM", "FMA", "MAM", "AMJ", "MJJ", "JJA", "JAS", "ASO", "SON", "OND", "NDJ"]
+
+
+def _evolution_curves():
+    years = np.arange(2000, 2011)
+    step = np.arange(12)
+    values = np.stack([np.sin(np.pi * step / 11.0) * (0.5 + 0.1 * k)
+                       for k in range(len(years))])
+    values[-1, 7:] = np.nan                       # 2010 observed through step 6
+    return xr.DataArray(values, dims=("year", "step"),
+                        coords={"year": years, "step": step}, name="nino34")
+
+
+def test_plot_index_evolution_draws_plume_analogs_and_target():
+    curves = _evolution_curves()
+    analogs = analogs_from_evolution(curves, target_year=2010, n=2,
+                                     candidates=range(2000, 2010))
+    fig = plot_index_evolution(curves, analogs, labels=MON, title="Niño3.4")
+    ax = fig.axes[0]
+    lines = [l for l in ax.get_lines() if len(l.get_xdata()) > 2]   # not the axhline
+    assert len(lines) == curves.sizes["year"]
+    black = [l for l in lines if l.get_color() == "black"]
+    assert len(black) == 1 and len(black[0].get_xdata()) == 7    # only observed steps
+    labels = [l.get_label() for l in lines if not l.get_label().startswith("_")]
+    assert sum("r=" in l and "mad=" in l for l in labels) == 2
+    assert any("2010 observed (to date)" == l for l in labels)
+    assert [t.get_text() for t in ax.get_xticklabels()] == MON
+
+
+def test_plot_index_evolution_without_analogs_highlights_explicit_years():
+    curves = _evolution_curves()
+    fig = plot_index_evolution(curves, target_year=2010, highlight=[2003], zero_line=False)
+    ax = fig.axes[0]
+    assert all(len(l.get_xdata()) > 2 for l in ax.get_lines())      # no zero line
+    assert any(l.get_label() == "2003" for l in ax.get_lines())
+
+
+def test_plot_index_evolution_rejects_unknown_years():
+    curves = _evolution_curves()
+    with pytest.raises(ValueError):
+        plot_index_evolution(curves, target_year=1990)
+    with pytest.raises(ValueError):
+        plot_index_evolution(curves, highlight=[1990])

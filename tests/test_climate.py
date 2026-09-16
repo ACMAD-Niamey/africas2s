@@ -1,4 +1,6 @@
 """Accumulation and climatological positioning."""
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -54,6 +56,25 @@ def test_seasonal_stack_tail_days_default_matches_previous_behaviour():
         seasonal_stack(da, "MAM", years=[2015]),
         seasonal_stack(da, "MAM", years=[2015], tail_days=0),
     )
+
+
+def test_seasonal_stack_season_start_needs_no_precision_conversion():
+    """The season_start coord must already be nanosecond precision.
+
+    xarray warns whenever a DataArray or coord is built from datetime64 values
+    coarser than nanoseconds, so building season_start from day-precision
+    stamps made every seasonal_stack call warn -- and onset, which stacks
+    internally, warn once per model.
+    """
+    time = pd.date_range("2015-01-01", "2015-12-31", freq="D")
+    da = xr.DataArray(np.arange(len(time), dtype=float), dims="time",
+                      coords={"time": time})
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        stacked = seasonal_stack(da, "MAM", years=[2015])
+    assert [str(w.message) for w in caught
+            if "non-nanosecond precision datetime" in str(w.message)] == []
+    assert stacked["season_start"].dtype == np.dtype("datetime64[ns]")
 
 
 # --- accumulate ------------------------------------------------------------

@@ -21,14 +21,69 @@ _NE_COAST = _NE_ROOT / "physical" / "ne_50m_coastline.shp"
 _NE_BORDERS = _NE_ROOT / "cultural" / "ne_50m_admin_0_boundary_lines_land.shp"
 
 
-def _tercile_codes(probs, prob_bins):
+def _no_dominant(values, valid, prob_bins, secondary_max=None):
+    """Cells whose leading category does not qualify as dominant.
+
+    Two rules, both expressed in percent. The leading probability must reach
+    the first bin edge ``prob_bins[0]`` — with the GHACOF/ACMAD 33.3 edge that
+    is always true (the largest of three probabilities is at least a third),
+    with ICPAC's 40 or NMME's 38 it is the "no dominant category" threshold.
+    With ``secondary_max`` set, the OTHER OUTER tercile(s) must also be under
+    that value. NOAA CPC's NMME rule names the opposite class, not every other
+    category: "A and B contours show when one class has >38% of ensemble
+    members, and the opposite class is below 33%. In the case that A is >38%
+    and N is >33%, A will be shown." So a near-normal runner-up never blanks an
+    outer tercile; when normal leads, both outer terciles must clear the bar.
+    That also reproduces NOAA's white cases exactly: every tercile under the
+    first bin edge, or both outer terciles above it.
+
+    ``values`` is (tercile, ...) in (below, normal, above) order. Returns a
+    bool array; cells that are not a valid triple are reported False here
+    (they are excluded elsewhere).
+    """
+    finite = np.where(np.isfinite(values), values, -np.inf)
+    pct = finite * 100.0
+    leading = np.max(pct, axis=0)
+    with np.errstate(invalid="ignore"):
+        weak = valid & (leading < prob_bins[0])
+        if secondary_max is not None:
+            lead_i = np.argmax(pct, axis=0)
+            below, above = pct[0], pct[2]
+            # below leads -> above constrains; above leads -> below constrains;
+            # normal leads -> both must be under the bar.
+            rival = np.where(lead_i == 0, above,
+                             np.where(lead_i == 2, below, np.maximum(below, above)))
+            weak = weak | (valid & (rival >= secondary_max))
+    return weak
+
+
+def _no_dominant_label(style):
+    """Legend text for the white "no dominant category" cells, or None when
+    the style's rules never leave a valid cell unfilled."""
+    if style is None:
+        return None
+    threshold = float(style.prob_bins[0]) > 100.0 / 3.0 + 1e-6
+    secondary = getattr(style, "secondary_max", None) is not None
+    if not (threshold or secondary):
+        return None
+    parts = []
+    if threshold:
+        parts.append(f"leading < {float(style.prob_bins[0]):g}%")
+    if secondary:
+        parts.append(f"opposing tercile ≥ {float(style.secondary_max):g}%")
+    return "No dominant category (" + " or ".join(parts) + ")"
+
+
+def _tercile_codes(probs, prob_bins, secondary_max=None):
     """Integer class code per cell for a discrete tercile palette.
 
     ``probs`` is (tercile=3, lat, lon), tercile order (below, normal, above),
     fractional (0-1). Returns (code, valid). n = len(prob_bins)-1 bins:
-    above -> 0..n-1, normal -> n..2n-1, below -> 2n..3n-1; -1 = no valid triple.
+    above -> 0..n-1, normal -> n..2n-1, below -> 2n..3n-1; -1 = no valid triple
+    or no dominant category (see ``_no_dominant``).
     """
     valid = np.isfinite(probs).all(axis=0)
+    valid = valid & ~_no_dominant(probs, valid, prob_bins, secondary_max)
     dom = np.argmax(np.where(np.isfinite(probs), probs, -1.0), axis=0)  # 0=below 1=normal 2=above
     prob_pct = np.where(valid, np.max(probs, axis=0) * 100.0, np.nan)
     n = len(prob_bins) - 1
@@ -106,9 +161,23 @@ def _draw_cartopy_basemap(ax):
     # the UN/GHACOF depiction. Everything else is identical to BORDERS.
     ax.add_geometries(_neutral_border_geoms("50m"), ccrs.PlateCarree(),
                       facecolor="none", edgecolor="#555555", linewidth=0.6)
-    gl = ax.gridlines(draw_labels=True, linewidth=0.3, color="#777777", alpha=0.5)
-    gl.top_labels = False
-    gl.right_labels = False
+    # Ask for the bottom/left labels up front rather than enabling all four
+    # and switching top/right off afterwards: with cartopy 0.25 on matplotlib
+    # >= 3.10, toggling a label side off after creation leaves the axes with a
+    # NaN tight bounding box, which crops every bbox_inches="tight" save (and
+    # the notebook inline render) to the colorbar/legend. Older cartopy takes
+    # only a bool, in which case the toggle is still the way.
+    try:
+        gl = ax.gridlines(draw_labels=["bottom", "left"], linewidth=0.3,
+                          color="#777777", alpha=0.5)
+    except (TypeError, ValueError):
+        gl = None
+    if gl is None or gl.top_labels or gl.right_labels:
+        if gl is not None:
+            gl.remove()
+        gl = ax.gridlines(draw_labels=True, linewidth=0.3, color="#777777", alpha=0.5)
+        gl.top_labels = False
+        gl.right_labels = False
 
 
 def _to_0_360(gdf):
@@ -191,6 +260,10 @@ def _tercile_style_legend(ax, style, below_label, above_label):
     ]
     if style.lakes:
         handles.append(Patch(facecolor=style.lake_color, label="Lake"))
+    no_dominant = _no_dominant_label(style)
+    if no_dominant:
+        handles.append(Patch(facecolor=style.nodata_color, edgecolor="0.6",
+                             label=no_dominant))
     ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.10),
               ncol=4, frameon=True, framealpha=0.9, fontsize=7,
               title="Probability of category", title_fontsize=8)
@@ -493,7 +566,11 @@ def _draw_smooth_terciles(ax, values, lat, lon, style, factor, is_geo):
     valid = np.isfinite(values).all(axis=0)
     dom = np.full(valid.shape, -1)
     dom[valid] = np.argmax(values[:, valid], axis=0)
-    excluded = ~valid
+    # A leading category that does not qualify as dominant (under the first
+    # bin edge, or contested when the style sets secondary_max) is left
+    # unfilled, never clipped up into the weakest band.
+    excluded = ~valid | _no_dominant(values, valid, style.prob_bins,
+                                     getattr(style, "secondary_max", None))
     if outside is not None:
         excluded = excluded | outside
     if dry is not None:
@@ -622,7 +699,8 @@ def plot_tercile_forecast(pr_fcst, *, style=None, ax=None, title=None,
         else:
             ax.set_xlim(extent[0], extent[1]); ax.set_ylim(extent[2], extent[3])
     else:
-        code, _ = _tercile_codes(values, style.prob_bins)
+        code, _ = _tercile_codes(values, style.prob_bins,
+                                 getattr(style, "secondary_max", None))
         cmap, npal = _discrete_cmap(style)
         code = _apply_style_masks(code, lat, lon, style)
         code_masked = np.ma.masked_less(code, 0)
