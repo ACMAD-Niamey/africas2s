@@ -15,6 +15,7 @@ AfricaS2S turns coarse GCM seasonal hindcasts/forecasts plus fine-resolution obs
 - Install: `pip install africas2s` — **import name is `africas2s`** (conventionally `import africas2s as ds`).
 - Methods, metrics, ensemble strategies, and CV schemes are **registries looked up by name strings** — you select behavior with plain strings like `method="cca"`, `metrics="rpss"`, `strategy="bma"`, `cv="loyo"`.
 - CCA is validated against CPT Fortran 17.8.3 / PyCPT to r≈0.9996 on predictions.
+- MCP server: `pip install 'africas2s[mcp]'` then `africas2s-mcp` (stdio). Tools mirror the verbs below (`downscale`, `optimize`, `calibrate`, `ensemble`, `skill`, `to_tercile`, `plot_terciles`, `plot_field`, plus `list_registry` and `describe_dataset`); gridded data is exchanged as NetCDF paths under `AFRICAS2S_MCP_WORKDIR` (default `~/.africas2s/mcp`). The same shapes, method names, and discipline rules apply whether you call the library or the server.
 
 ## Data conventions (get these right first)
 

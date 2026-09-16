@@ -20,6 +20,8 @@ The skill is a snapshot of the source. Any change that alters observable behavio
 | Plotting/reporting functions or export formats — incl. `plotting/maps.py`, `plotting/scenarios.py`, `plotting/forecasts.py` | `skills/africas2s/references/plotting-reporting.md` |
 | Error messages, extras, environment requirements | `skills/africas2s/references/troubleshooting.md` |
 | Rosetta integration / input data shapes | `skills/africas2s/SKILL.md` ("Getting data in") |
+| MCP server (`src/africas2s/mcp/server.py`: tools, resources, workdir/env vars, output naming) | `README.md` "MCP server" + `skills/africas2s/SKILL.md` ("MCP server" note) + `tests/test_mcp_server.py` |
+| Public verb changes above that the MCP server wraps (`downscale`/`optimize`/`calibrate`/`ensemble`/`skill` params, result dataclass fields) | `src/africas2s/mcp/server.py` tool signatures/docstrings, if the tool exposes the changed parameter or field |
 | Anything user-facing | `README.md` if it covers the topic |
 
 Also update `skills/africas2s/examples/` if a change breaks or obsoletes an example. If you are unsure whether a change is documented, grep `skills/` and `README.md` for the function, method name, or parameter you touched — stale docs are treated as bugs.
@@ -30,4 +32,5 @@ Also update `skills/africas2s/examples/` if a change breaks or obsoletes an exam
 - Methods/metrics/strategies/calibrators are looked up by name via `africas2s/registry.py` — new capabilities register there rather than being hard-wired.
 - Tests: bare `pytest` must stay fast (< 30 s) and green; markers `integration`, `agreement`, `gpu` gate slow/real-data suites. Coverage target > 85% on `src/africas2s`. New behavior needs tests.
 - Statistical honesty is a design invariant: cross-validated outputs must never leak held-out years (use `to_tercile_cv`, nested CV safeguards). Do not weaken these paths for convenience.
+- The MCP server (`africas2s-mcp`, `src/africas2s/mcp/`, extra `[mcp]`) is a thin wrapper: tools call the public verbs and add no behaviour. Data crosses the protocol as NetCDF paths, never arrays. Re-raise library errors as `ToolError` so agents see the message. Tests in `tests/test_mcp_server.py` stay in the fast bare-`pytest` suite.
 - CCA numerics intentionally match CPT Fortran 17.8.3 — changes there must preserve parity (`scripts/reproduce.py`, `agreement` tests).
