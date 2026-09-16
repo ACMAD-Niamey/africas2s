@@ -254,11 +254,15 @@ def test_schemas_carry_field_descriptions_enums_and_outputs():
     ds = tools["downscale"]
     props = ds.input_schema["properties"]
     assert all(p.get("description") for p in props.values()), [k for k, p in props.items() if not p.get("description")]
-    assert set(props["method"]["enum"]) == set(registry._METHODS)
+    # Enums are an import-time snapshot; other test modules may register
+    # test-only entries later, so assert subset, and that the snapshot is real.
+    assert set(props["method"]["enum"]) <= set(registry._METHODS)
+    assert {"bcsd", "cca", "qm", "climatology"} <= set(props["method"]["enum"])
     assert props["output_type"]["enum"] == ["continuous", "tercile"]
     assert "path" in ds.output_schema["properties"]
     ens = tools["ensemble"].input_schema["properties"]
-    assert set(ens["strategy"]["enum"]) == set(registry._STRATEGIES)
+    assert set(ens["strategy"]["enum"]) <= set(registry._STRATEGIES)
+    assert {"uniform", "bma"} <= set(ens["strategy"]["enum"])
     assert "weights" in tools["ensemble"].output_schema["properties"]
     assert tools["list_registry"].annotations.read_only_hint is True
     assert tools["downscale"].annotations.read_only_hint is False
@@ -277,8 +281,10 @@ def test_enum_violation_is_rejected_at_the_protocol(files):
 def test_list_registry_matches_schema_enums():
     reg = server.list_registry()
     tools = {t.name: t for t in _run(server.mcp.list_tools())}
+    # list_registry and the schema enums come from the same snapshot.
     assert tools["optimize"].input_schema["properties"]["cv"]["enum"] == reg["cv_schemes"]
-    assert set(tools["skill"].input_schema["properties"]["metrics"]["anyOf"][0]["items"]["enum"]) == set(reg["metrics"])
+    assert tools["skill"].input_schema["properties"]["metrics"]["anyOf"][0]["items"]["enum"] == reg["metrics"]
+    assert tools["downscale"].input_schema["properties"]["method"]["enum"] == reg["methods"]
 
 
 def test_protocol_2026_07_28_compliance():

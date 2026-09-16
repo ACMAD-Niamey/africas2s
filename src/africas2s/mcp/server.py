@@ -113,12 +113,24 @@ mcp = MCPServer(
 
 _PRESETS: dict = importlib.import_module("africas2s.skill").PRESETS
 
-Method = Literal[tuple(sorted(registry._METHODS))]
-Calibrator = Literal[tuple(sorted(registry._CALIBRATORS))]
-Strategy = Literal[tuple(sorted(registry._STRATEGIES))]
-MetricName = Literal[tuple(sorted(registry._METRICS))]
-MetricPreset = Literal[tuple(sorted(_PRESETS))]
-CVScheme = Literal[tuple(sorted(_cv._REGISTRY))]
+# Snapshot the registries once, at import. The tool schemas (enums) and
+# list_registry both read this snapshot, so they always agree. Anything
+# registered in-process after this module is imported (a user's custom
+# method) is not exposed over MCP, by design: the schema is the contract.
+METHODS = tuple(sorted(registry._METHODS))
+CALIBRATORS = tuple(sorted(registry._CALIBRATORS))
+STRATEGIES = tuple(sorted(registry._STRATEGIES))
+METRICS = tuple(sorted(registry._METRICS))
+PRESETS = tuple(sorted(_PRESETS))
+CV_SCHEMES = tuple(sorted(_cv._REGISTRY))
+_METRIC_CLASSES = {name: cls for name, cls in registry._METRICS.items()}
+
+Method = Literal[METHODS]
+Calibrator = Literal[CALIBRATORS]
+Strategy = Literal[STRATEGIES]
+MetricName = Literal[METRICS]
+MetricPreset = Literal[PRESETS]
+CVScheme = Literal[CV_SCHEMES]
 OutputType = Literal["continuous", "tercile"]
 TercileMethod = Literal["counting", "gaussian"]
 VariableKind = Literal["precip", "temp"]
@@ -431,16 +443,16 @@ def list_registry() -> RegistryOut:
     metric_presets, cv_schemes}.
     """
     by_class: dict[str, list[str]] = {}
-    for name, cls in registry._METRICS.items():
-        by_class.setdefault(cls.__name__, []).append(name)
+    for name in METRICS:
+        by_class.setdefault(_METRIC_CLASSES[name].__name__, []).append(name)
     return {
-        "methods": sorted(registry._METHODS),
-        "calibrators": sorted(registry._CALIBRATORS),
-        "strategies": sorted(registry._STRATEGIES),
-        "metrics": sorted(registry._METRICS),
+        "methods": list(METHODS),
+        "calibrators": list(CALIBRATORS),
+        "strategies": list(STRATEGIES),
+        "metrics": list(METRICS),
         "metric_aliases": {v[0]: v[1:] for v in by_class.values() if len(v) > 1},
-        "metric_presets": dict(_PRESETS),
-        "cv_schemes": sorted(_cv._REGISTRY),
+        "metric_presets": {k: _PRESETS[k] for k in PRESETS},
+        "cv_schemes": list(CV_SCHEMES),
     }
 
 
