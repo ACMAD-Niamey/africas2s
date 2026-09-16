@@ -220,8 +220,10 @@ AfricaS2S ships a [Model Context Protocol](https://modelcontextprotocol.io) serv
 ```bash
 pip install 'africas2s[mcp]'
 africas2s-mcp                    # stdio transport (what MCP clients spawn)
-africas2s-mcp --transport streamable-http --port 8001
+africas2s-mcp --transport streamable-http --port 8001 --stateless
 ```
+
+The server implements MCP protocol revision 2026-07-28 (via the `mcp` 2.x SDK): stateless core, `server/discover`, cache freshness hints on list results, and Streamable HTTP as the only network transport (HTTP+SSE is deprecated). Every tool is stateless by construction, since inputs and outputs are file paths, so `--stateless` is safe.
 
 Register it with a client, for example in Claude Code:
 

@@ -16,6 +16,7 @@ import xarray as xr
 
 pytest.importorskip("mcp")
 
+from mcp.client import Client  # noqa: E402
 from mcp.server.mcpserver.exceptions import ToolError  # noqa: E402
 
 from africas2s.mcp import server  # noqa: E402
@@ -237,10 +238,13 @@ def test_resources_listed_and_readable():
 def test_main_parses_transport(monkeypatch):
     seen = {}
     monkeypatch.setattr(server.mcp, "run", lambda transport, **kw: seen.update(t=transport, **kw))
-    server.main(["--transport", "streamable-http", "--port", "9002"])
-    assert seen == {"t": "streamable-http", "host": "127.0.0.1", "port": 9002}
+    server.main(["--transport", "streamable-http", "--port", "9002", "--stateless"])
+    assert seen == {"t": "streamable-http", "host": "127.0.0.1", "port": 9002,
+                    "stateless_http": True, "json_response": False}
     server.main([])
     assert seen["t"] == "stdio"
+    with pytest.raises(SystemExit):  # HTTP+SSE is deprecated in MCP 2026-07-28
+        server.main(["--transport", "sse"])
 
 
 def test_schemas_carry_field_descriptions_enums_and_outputs():
@@ -275,3 +279,27 @@ def test_list_registry_matches_schema_enums():
     tools = {t.name: t for t in _run(server.mcp.list_tools())}
     assert tools["optimize"].input_schema["properties"]["cv"]["enum"] == reg["cv_schemes"]
     assert set(tools["skill"].input_schema["properties"]["metrics"]["anyOf"][0]["items"]["enum"]) == set(reg["metrics"])
+
+
+def test_protocol_2026_07_28_compliance():
+    """Drive the server through the SDK client, as a real MCP client would."""
+
+    async def scenario():
+        async with Client(server.mcp) as client:
+            assert client.protocol_version == "2026-07-28"
+            info = client.server_info
+            assert info.name == "africas2s" and info.version and info.website_url
+            first = await client.list_tools()
+            assert first.result_type == "complete"
+            # CacheableResult freshness hints, required on every list/read result.
+            assert first.ttl_ms == 24 * 60 * 60 * 1000 and first.cache_scope == "public"
+            second = await client.list_tools()
+            assert [t.name for t in first.tools] == [t.name for t in second.tools]  # deterministic order
+            resources = await client.list_resources()
+            assert resources.ttl_ms > 0 and resources.cache_scope == "public"
+            read = await client.read_resource("africas2s://skill")
+            assert read.ttl_ms > 0 and read.contents
+            result = await client.call_tool("list_registry", {})
+            assert result.result_type == "complete" and not result.is_error
+
+    _run(scenario())

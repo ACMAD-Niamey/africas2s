@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.metadata
 import importlib
 import inspect
 import json
@@ -31,6 +32,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
+from mcp.server.caching import CacheHint
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
@@ -74,11 +76,34 @@ Read the africas2s://skill resource for the full API and the statistical
 discipline rules (tercile leakage, grid rule, CV requirements).
 """
 
+# MCP 2026-07-28 requires freshness hints (ttlMs / cacheScope) on every list
+# and read result. The tool list and skill text are static for the life of a
+# server process and hold nothing per-user, so clients and intermediaries may
+# cache them for a day.
+def _dist_version(dist: str) -> str:
+    """Identify the server by the installed distribution version (serverInfo)."""
+    try:
+        return importlib.metadata.version(dist)
+    except importlib.metadata.PackageNotFoundError:
+        return ""
+
+
+_DAY_MS = 24 * 60 * 60 * 1000
+_CACHE_HINTS = {
+    "tools/list": CacheHint(ttl_ms=_DAY_MS, scope="public"),
+    "prompts/list": CacheHint(ttl_ms=_DAY_MS, scope="public"),
+    "resources/list": CacheHint(ttl_ms=_DAY_MS, scope="public"),
+    "resources/templates/list": CacheHint(ttl_ms=_DAY_MS, scope="public"),
+    "resources/read": CacheHint(ttl_ms=60 * 60 * 1000, scope="public"),
+}
+
 mcp = MCPServer(
     name="africas2s",
     title="AfricaS2S seasonal forecast downscaling and verification",
     instructions=_INSTRUCTIONS,
-    version=getattr(africas2s, "__version__", ""),
+    version=_dist_version("africas2s"),
+    website_url="https://github.com/ACMAD-Niamey/africas2s",
+    cache_hints=_CACHE_HINTS,
 )
 
 
@@ -838,14 +863,21 @@ def skill_reference(name: str) -> str:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="africas2s-mcp", description="Run the africas2s MCP server.")
-    parser.add_argument("--transport", choices=["stdio", "streamable-http", "sse"], default="stdio")
+    # HTTP+SSE is deprecated in MCP 2026-07-28; only stdio and Streamable HTTP are offered.
+    parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8001)
+    parser.add_argument("--stateless", action="store_true",
+                        help="Streamable HTTP without server-side session state (every tool "
+                             "here is stateless: inputs and outputs are file paths).")
+    parser.add_argument("--json-response", action="store_true",
+                        help="Streamable HTTP: reply with plain JSON instead of an event stream.")
     args = parser.parse_args(argv)
     if args.transport == "stdio":
         mcp.run("stdio")
     else:
-        mcp.run(args.transport, host=args.host, port=args.port)
+        mcp.run("streamable-http", host=args.host, port=args.port,
+                stateless_http=args.stateless, json_response=args.json_response)
 
 
 if __name__ == "__main__":
