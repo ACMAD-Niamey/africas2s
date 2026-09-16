@@ -241,3 +241,37 @@ def test_main_parses_transport(monkeypatch):
     assert seen == {"t": "streamable-http", "host": "127.0.0.1", "port": 9002}
     server.main([])
     assert seen["t"] == "stdio"
+
+
+def test_schemas_carry_field_descriptions_enums_and_outputs():
+    from africas2s import registry
+
+    tools = {t.name: t for t in _run(server.mcp.list_tools())}
+    ds = tools["downscale"]
+    props = ds.input_schema["properties"]
+    assert all(p.get("description") for p in props.values()), [k for k, p in props.items() if not p.get("description")]
+    assert set(props["method"]["enum"]) == set(registry._METHODS)
+    assert props["output_type"]["enum"] == ["continuous", "tercile"]
+    assert "path" in ds.output_schema["properties"]
+    ens = tools["ensemble"].input_schema["properties"]
+    assert set(ens["strategy"]["enum"]) == set(registry._STRATEGIES)
+    assert "weights" in tools["ensemble"].output_schema["properties"]
+    assert tools["list_registry"].annotations.read_only_hint is True
+    assert tools["downscale"].annotations.read_only_hint is False
+    for tool in tools.values():
+        assert "Returns:" in tool.description, tool.name
+        assert not tool.description.startswith(" "), tool.name
+
+
+def test_enum_violation_is_rejected_at_the_protocol(files):
+    with pytest.raises(ToolError, match="method"):
+        _run(server.mcp.call_tool("downscale", {
+            "predictor_hindcast_path": files["hind"], "obs_path": files["obs"], "method": "nope",
+        }))
+
+
+def test_list_registry_matches_schema_enums():
+    reg = server.list_registry()
+    tools = {t.name: t for t in _run(server.mcp.list_tools())}
+    assert tools["optimize"].input_schema["properties"]["cv"]["enum"] == reg["cv_schemes"]
+    assert set(tools["skill"].input_schema["properties"]["metrics"]["anyOf"][0]["items"]["enum"]) == set(reg["metrics"])

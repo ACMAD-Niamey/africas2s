@@ -10,6 +10,11 @@ Design rules (keep these when adding tools):
   is written under ``AFRICAS2S_MCP_WORKDIR`` (default ``~/.africas2s/mcp``)
   and returned as a path plus a compact summary. Scalars (skill scores,
   weights, chosen method) come back inline.
+* Every parameter carries a schema-level description and closed vocabularies
+  (methods, calibrators, strategies, metrics, CV schemes) are ``Literal``
+  enums built from the registries at import time, so the schema is always in
+  sync with what the library accepts. Every tool documents what it returns
+  and shows one example.
 * Library exceptions are re-raised as ``ToolError`` so the agent sees the
   message. The MCP SDK hides the text of any other exception.
 """
@@ -19,16 +24,21 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib
+import inspect
 import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.types import ToolAnnotations
+from pydantic import Field
+from typing_extensions import NotRequired, TypedDict
 
 import africas2s
+from africas2s import cv as _cv
 from africas2s import registry
 from africas2s.tercile import to_tercile as _to_tercile
 
@@ -53,11 +63,12 @@ Every gridded input is a path to a NetCDF file (acmaddl-mcp fetch with
 year_index=true produces the hindcast shape directly). Every gridded output
 is written to a NetCDF file and its path returned; use describe_dataset to
 inspect any file. Methods, calibrators, ensemble strategies, and metrics are
-selected by name; list_registry shows what is available.
+selected by name and the tool schemas list the valid names.
 
 Typical flow: optimize (pick a method by CV skill) or downscale -> skill ->
-plot_terciles. For tercile metrics such as rpss the forecast must be tercile
-probabilities: use downscale(output_type="tercile") or to_tercile.
+plot_terciles. Rules: tercile metrics such as rpss need tercile probabilities
+(downscale output_type="tercile", or to_tercile); calibrate does not regrid,
+so put the GCM on the obs grid first; downscale methods regrid themselves.
 
 Read the africas2s://skill resource for the full API and the statistical
 discipline rules (tercile leakage, grid rule, CV requirements).
@@ -72,8 +83,114 @@ mcp = MCPServer(
 
 
 # --------------------------------------------------------------------------
+# vocabularies from the registries (populated by ``import africas2s``)
+# --------------------------------------------------------------------------
+
+_PRESETS: dict = importlib.import_module("africas2s.skill").PRESETS
+
+Method = Literal[tuple(sorted(registry._METHODS))]
+Calibrator = Literal[tuple(sorted(registry._CALIBRATORS))]
+Strategy = Literal[tuple(sorted(registry._STRATEGIES))]
+MetricName = Literal[tuple(sorted(registry._METRICS))]
+MetricPreset = Literal[tuple(sorted(_PRESETS))]
+CVScheme = Literal[tuple(sorted(_cv._REGISTRY))]
+OutputType = Literal["continuous", "tercile"]
+TercileMethod = Literal["counting", "gaussian"]
+VariableKind = Literal["precip", "temp"]
+
+
+# --------------------------------------------------------------------------
+# typed results (become the tools' output schemas)
+# --------------------------------------------------------------------------
+
+class CoordSummary(TypedDict, total=False):
+    size: int
+    dtype: str
+    min: float
+    max: float
+    step: float
+    first: str
+    last: str
+
+
+class VariableSummary(TypedDict, total=False):
+    dims: list[str]
+    shape: list[int]
+    dtype: str
+    units: str | None
+    nan_fraction: float
+    min: float
+    max: float
+
+
+class DatasetSummary(TypedDict):
+    """What every gridded output returns: where the file is and what is in it."""
+    dims: dict[str, int]
+    coords: dict[str, CoordSummary]
+    variables: dict[str, VariableSummary]
+    attrs: dict[str, Any]
+    path: NotRequired[str]
+    size_bytes: NotRequired[int]
+    request: NotRequired[dict[str, Any]]
+
+
+class OptimizeOut(DatasetSummary):
+    method: str
+    score: float | None
+    primary_metric: str
+
+
+class EnsembleOut(DatasetSummary):
+    weights: list[float]
+    member_names: list[str]
+    member_cv_skill: dict[str, Any]
+    effective_n: float
+    gate_passed: bool
+    shrinkage_lambda: float
+    safeguards_applied: dict[str, Any]
+    pev: NotRequired[DatasetSummary]
+
+
+class SkillOut(TypedDict):
+    scores: dict[str, Any]
+    metadata: dict[str, Any]
+    diagrams: NotRequired[dict[str, Any]]
+    spatial_path: NotRequired[str]
+    spatial: NotRequired[DatasetSummary]
+
+
+class PlotOut(TypedDict):
+    path: str
+    format: Literal["png"]
+    request: dict[str, Any]
+
+
+class RegistryOut(TypedDict):
+    methods: list[str]
+    calibrators: list[str]
+    strategies: list[str]
+    metrics: list[str]
+    metric_aliases: dict[str, list[str]]
+    metric_presets: dict[str, list[str] | None]
+    cv_schemes: list[str]
+
+
+# --------------------------------------------------------------------------
 # helpers
 # --------------------------------------------------------------------------
+
+def tool(*, read_only: bool = False, idempotent: bool = True, open_world: bool = False,
+         destructive: bool = False, **kwargs):
+    """``mcp.tool`` with client-facing annotations and a dedented docstring."""
+    annotations = ToolAnnotations(read_only_hint=read_only, destructive_hint=destructive,
+                                  idempotent_hint=idempotent, open_world_hint=open_world)
+
+    def decorate(fn):
+        description = kwargs.pop("description", None) or inspect.cleandoc(fn.__doc__ or "")
+        return mcp.tool(annotations=annotations, description=description, **kwargs)(fn)
+
+    return decorate
+
 
 def workdir() -> Path:
     root = os.environ.get("AFRICAS2S_MCP_WORKDIR") or (Path.home() / ".africas2s" / "mcp")
@@ -104,11 +221,11 @@ def _json_safe(obj: Any) -> Any:
     return str(obj)
 
 
-def _coord_summary(coord) -> dict:
+def _coord_summary(coord) -> CoordSummary:
     import numpy as np
 
     vals = coord.values
-    out: dict[str, Any] = {"size": int(vals.size), "dtype": str(vals.dtype)}
+    out: CoordSummary = {"size": int(vals.size), "dtype": str(vals.dtype)}
     if vals.size == 0:
         return out
     flat = vals.ravel()
@@ -128,14 +245,14 @@ def _coord_summary(coord) -> dict:
     return out
 
 
-def summarize(ds, *, path: str | Path | None = None, max_stats_elements: int = 20_000_000) -> dict:
+def summarize(ds, *, path: str | Path | None = None, max_stats_elements: int = 20_000_000) -> DatasetSummary:
     """Compact, JSON-safe description of a Dataset / DataArray."""
     import numpy as np
     import xarray as xr
 
     if isinstance(ds, xr.DataArray):
         ds = ds.to_dataset(name=ds.name or "data")
-    out: dict[str, Any] = {
+    out: DatasetSummary = {
         "dims": {k: int(v) for k, v in ds.sizes.items()},
         "coords": {k: _coord_summary(ds.coords[k]) for k in ds.coords},
         "variables": {},
@@ -148,11 +265,12 @@ def summarize(ds, *, path: str | Path | None = None, max_stats_elements: int = 2
         except OSError:
             pass
     for name, da in ds.data_vars.items():
-        entry: dict[str, Any] = {
+        units = da.attrs.get("units")
+        entry: VariableSummary = {
             "dims": list(da.dims),
             "shape": [int(s) for s in da.shape],
             "dtype": str(da.dtype),
-            "units": da.attrs.get("units"),
+            "units": None if units is None else str(units),
         }
         if da.size and da.size <= max_stats_elements and np.issubdtype(da.dtype, np.number):
             vals = da.values
@@ -225,7 +343,7 @@ def _output_path(destination: str | None, *parts: Any, params: dict, suffix: str
     return str(workdir() / f"{_slug(*parts)}_{digest}{suffix}")
 
 
-def _write(da, name: str, destination: str | None, *parts: Any, params: dict) -> dict:
+def _write(da, name: str, destination: str | None, *parts: Any, params: dict) -> DatasetSummary:
     """Write a DataArray as NetCDF and return its path + summary."""
     out_path = _output_path(destination, *parts, params=params)
     da = da.rename(name) if da.name != name else da
@@ -253,31 +371,66 @@ def _call(fn, *args, **kwargs):
 
 
 # --------------------------------------------------------------------------
+# shared parameter annotations
+# --------------------------------------------------------------------------
+
+ObsPathArg = Annotated[str, Field(
+    description="NetCDF path of the observations (predictand): (year, lat, lon) on the fine "
+                "target grid, year = consecutive integers.")]
+HindcastPathArg = Annotated[str, Field(
+    description="NetCDF path of the GCM hindcast: (year, member, lat, lon), same years as obs.")]
+VariableArg = Annotated[str | None, Field(
+    description="Data variable to read from the forecast/hindcast files when they hold more than one.")]
+ObsVariableArg = Annotated[str | None, Field(
+    description="Data variable to read from the obs file when it holds more than one.")]
+OptionsArg = Annotated[dict[str, Any] | None, Field(
+    description="Extra keyword arguments forwarded to the library verb (method-specific, e.g. "
+                "{\"n_modes\": 3} for cca).")]
+DestinationArg = Annotated[str | None, Field(
+    description="Explicit output path. Default: a stable name derived from the request under "
+                "AFRICAS2S_MCP_WORKDIR, so repeating a request reuses the file.")]
+
+
+# --------------------------------------------------------------------------
 # introspection
 # --------------------------------------------------------------------------
 
-@mcp.tool()
-def list_registry() -> dict:
+@tool(read_only=True)
+def list_registry() -> RegistryOut:
     """Names accepted by the other tools: downscaling methods, calibrators,
-    ensemble strategies, and skill metrics (with aliases)."""
-    metrics: dict[str, list[str]] = {}
+    ensemble strategies, skill metrics (with aliases and presets), and
+    cross-validation schemes. The tool schemas already enumerate these; call
+    this when you want them with their aliases in one place.
+
+    Returns: {methods, calibrators, strategies, metrics, metric_aliases,
+    metric_presets, cv_schemes}.
+    """
+    by_class: dict[str, list[str]] = {}
     for name, cls in registry._METRICS.items():
-        metrics.setdefault(cls.__name__, []).append(name)
+        by_class.setdefault(cls.__name__, []).append(name)
     return {
         "methods": sorted(registry._METHODS),
         "calibrators": sorted(registry._CALIBRATORS),
         "strategies": sorted(registry._STRATEGIES),
         "metrics": sorted(registry._METRICS),
-        "metric_aliases": {v[0]: v[1:] for v in metrics.values() if len(v) > 1},
-        # africas2s.skill is the verb; the module (and its PRESETS) sits behind it.
-        "metric_presets": dict(importlib.import_module("africas2s.skill").PRESETS),
+        "metric_aliases": {v[0]: v[1:] for v in by_class.values() if len(v) > 1},
+        "metric_presets": dict(_PRESETS),
+        "cv_schemes": sorted(_cv._REGISTRY),
     }
 
 
-@mcp.tool()
-def describe_dataset(path: str) -> dict:
-    """Summarize a NetCDF file: dims, coordinate ranges, variables, units, NaN
-    fraction, attributes. Use it on any path returned by another tool."""
+@tool(read_only=True)
+def describe_dataset(
+    path: Annotated[str, Field(description="Path to a NetCDF file, e.g. one returned by another tool.")],
+) -> DatasetSummary:
+    """Summarize a NetCDF file without loading it into your context: dims,
+    coordinate ranges, variables with units and NaN fraction, attributes.
+
+    Use it to confirm a file has the shape a tool expects (see the data
+    conventions in the server instructions) before calling that tool.
+    Returns: {path, dims, coords, variables, attrs, size_bytes}.
+    Example: describe_dataset(path="hindcast.nc")
+    """
     with _open(path) as ds:
         return summarize(ds, path=Path(path).expanduser())
 
@@ -286,27 +439,35 @@ def describe_dataset(path: str) -> dict:
 # downscale / optimize / calibrate
 # --------------------------------------------------------------------------
 
-@mcp.tool()
+@tool()
 def downscale(
-    predictor_hindcast_path: str,
-    obs_path: str,
-    method: str = "bcsd",
-    output_type: str = "continuous",
-    forecast_path: str | None = None,
-    predictor_variable: str | None = None,
-    obs_variable: str | None = None,
-    options: dict[str, Any] | None = None,
-    destination: str | None = None,
-) -> dict:
-    """Bias-correct and downscale a GCM hindcast/forecast onto the observation grid.
+    predictor_hindcast_path: HindcastPathArg,
+    obs_path: ObsPathArg,
+    method: Annotated[Method, Field(
+        description="Downscaling / bias-correction method. bcsd and cca are the usual choices; "
+                    "climatology is the no-skill baseline; corrdiff needs a GPU.")] = "bcsd",
+    output_type: Annotated[OutputType, Field(
+        description='"continuous" (a field in obs units) or "tercile" (below/normal/above '
+                    'probabilities, needed for rpss / roc).')] = "continuous",
+    forecast_path: Annotated[str | None, Field(
+        description="NetCDF path of the (member, lat, lon) forecast to predict. When omitted the "
+                    "last hindcast year is held out and predicted (a quick sanity check).")] = None,
+    predictor_variable: VariableArg = None,
+    obs_variable: ObsVariableArg = None,
+    options: OptionsArg = None,
+    destination: DestinationArg = None,
+) -> DatasetSummary:
+    """Bias-correct and downscale a GCM hindcast/forecast onto the observation
+    grid. Downscale methods regrid coarse to fine themselves; the output is on
+    the obs grid.
 
-    predictor_hindcast_path: NetCDF (year, member, lat, lon). obs_path: NetCDF
-    (year, lat, lon) on the fine target grid. method: a name from list_registry
-    (bcsd, cca, qm, dqm, delta, climatology, rank-analog, chelsa, corrdiff).
-    output_type: "continuous" or "tercile" (below/normal/above probabilities).
-    forecast_path: optional (member, lat, lon) forecast to predict; when omitted
-    the last hindcast year is held out and predicted. options: method keyword
-    arguments (e.g. n_modes for cca). Writes NetCDF and returns path + summary."""
+    Returns: {path, dims, coords, variables, attrs, size_bytes, request}; the
+    file holds "probability" (tercile, lat, lon) for tercile output or the obs
+    variable name for continuous output.
+    Example: downscale(predictor_hindcast_path="cfsv2_mam.nc", obs_path="chirps_mam.nc",
+    method="cca", output_type="tercile", forecast_path="cfsv2_2025.nc",
+    options={"n_modes": 3})
+    """
     hind = load_array(predictor_hindcast_path, predictor_variable)
     obs = load_array(obs_path, obs_variable)
     kwargs = dict(options or {})
@@ -321,22 +482,31 @@ def downscale(
     return _write(result, name, destination, "downscale", method, output_type, params=params)
 
 
-@mcp.tool()
+@tool()
 def optimize(
-    predictor_hindcast_path: str,
-    obs_path: str,
-    methods: list[str] | None = None,
-    cv: str = "loyo",
-    primary_metric: str = "rpss",
-    predictor_variable: str | None = None,
-    obs_variable: str | None = None,
-    options: dict[str, Any] | None = None,
-    destination: str | None = None,
-) -> dict:
+    predictor_hindcast_path: HindcastPathArg,
+    obs_path: ObsPathArg,
+    methods: Annotated[list[Method] | None, Field(
+        description='Candidate methods to compare. Default ["bcsd", "cca"].')] = None,
+    cv: Annotated[CVScheme, Field(
+        description='Cross-validation scheme: "loyo" leave-one-year-out (default), "lko", '
+                    '"blocked", "expanding".')] = "loyo",
+    primary_metric: Annotated[MetricName, Field(
+        description="Metric that decides the winner (computed on CV tercile hindcasts).")] = "rpss",
+    predictor_variable: VariableArg = None,
+    obs_variable: ObsVariableArg = None,
+    options: OptionsArg = None,
+    destination: DestinationArg = None,
+) -> OptimizeOut:
     """Try several downscaling methods under cross-validation and keep the most
-    skillful. methods default to ["bcsd", "cca"]; cv is a CV scheme name
-    ("loyo" leave-one-year-out); primary_metric a metric name. Returns the
-    winning method, its CV score, and the path of its forecast."""
+    skillful. This is the honest way to choose a method: every score is on
+    held-out years. Cost is roughly n_methods x n_years downscale fits.
+
+    Returns: the winner's forecast file summary plus {method, score,
+    primary_metric}.
+    Example: optimize(predictor_hindcast_path="cfsv2_mam.nc", obs_path="chirps_mam.nc",
+    methods=["bcsd", "cca", "qm"], cv="loyo", primary_metric="rpss")
+    """
     hind = load_array(predictor_hindcast_path, predictor_variable)
     obs = load_array(obs_path, obs_variable)
     kwargs = dict(options or {})
@@ -351,33 +521,46 @@ def optimize(
     return out
 
 
-@mcp.tool()
+@tool()
 def calibrate(
-    obs_path: str,
-    method: str = "ereg",
-    hindcast_path: str | None = None,
-    forecast_path: str | None = None,
-    models: dict[str, list[str]] | None = None,
-    output_type: str = "tercile",
-    forecast_year: int | None = None,
-    cv: str | None = None,
-    cv_window: int = 1,
-    variable: str | None = None,
-    obs_variable: str | None = None,
-    options: dict[str, Any] | None = None,
-    destination: str | None = None,
-) -> dict:
-    """Calibrate gridded predictors already on the obs grid into tercile
-    probabilities (no regridding: interpolate the GCM to the obs grid first).
+    obs_path: ObsPathArg,
+    method: Annotated[Calibrator, Field(
+        description='Calibration method: "ereg" ensemble regression (gridded), "logit" logistic '
+                    'index calibration, "smoothed_regression" season-aware Kharin et al. (2017).')] = "ereg",
+    hindcast_path: Annotated[str | None, Field(
+        description="Single model: NetCDF (year, member, lat, lon) hindcast already on the obs grid.")] = None,
+    forecast_path: Annotated[str | None, Field(
+        description="Single model: NetCDF (member, lat, lon) forecast already on the obs grid.")] = None,
+    models: Annotated[dict[str, list[str]] | None, Field(
+        description='Several models: {"name": [hindcast_path, forecast_path], ...}. Their calibrated '
+                    'maps are averaged. Use instead of hindcast_path/forecast_path.')] = None,
+    output_type: Annotated[Literal["tercile", "deterministic"], Field(
+        description='"tercile" probabilities (default) or "deterministic" calibrated field '
+                    '(ereg and smoothed_regression only).')] = "tercile",
+    forecast_year: Annotated[int | None, Field(
+        description="Year the forecast is for. ereg needs it to place the forecast on the fitted "
+                    "trend when the forecast file has no year coordinate.")] = None,
+    cv: Annotated[Literal["loyo"] | None, Field(
+        description='"loyo" returns the leave-year-out cross-validated hindcast (year, tercile, '
+                    'lat, lon) for skill scoring instead of the forecast. ereg/logit, tercile only.')] = None,
+    cv_window: Annotated[int, Field(
+        description="Years left out per CV fold (1 = strict leave-one-out; 5 matches PyCPT).")] = 1,
+    variable: VariableArg = None,
+    obs_variable: ObsVariableArg = None,
+    options: OptionsArg = None,
+    destination: DestinationArg = None,
+) -> DatasetSummary:
+    """Calibrate gridded predictors into tercile probabilities without changing
+    resolution. calibrate does NOT regrid: the hindcast and forecast must
+    already be on the obs grid (interpolate the GCM first, or use downscale).
 
-    Single model: hindcast_path (year, member, lat, lon) + forecast_path
-    (member, lat, lon). Several models: models={"name": [hindcast_path,
-    forecast_path], ...}; their calibrated maps are averaged. method: ereg,
-    logit, or smoothed_regression. forecast_year: the year the forecast is
-    for (ereg needs it to place the forecast on the fitted trend).
-    cv="loyo" returns the leave-year-out
-    cross-validated hindcast (year, tercile, lat, lon) for skill scoring
-    instead of the forecast. options: method keywords."""
+    Returns: {path, dims, coords, variables, attrs, size_bytes, request}; the
+    file holds "probability" (tercile, lat, lon), or (year, tercile, lat, lon)
+    under cv="loyo".
+    Example: calibrate(obs_path="chirps_mam.nc", method="ereg",
+    hindcast_path="cfsv2_on_obs_grid.nc", forecast_path="cfsv2_2025_on_obs_grid.nc",
+    forecast_year=2025)
+    """
     obs = load_array(obs_path, obs_variable)
     if models:
         predictor = {}
@@ -408,23 +591,36 @@ def calibrate(
 # ensemble / verification
 # --------------------------------------------------------------------------
 
-@mcp.tool()
+@tool()
 def ensemble(
-    forecast_paths: list[str],
-    obs_path: str | None = None,
-    strategy: str = "uniform",
-    optimize_ensemble: bool = False,
-    primary_metric: str = "rpss",
-    variable: str | None = None,
-    obs_variable: str | None = None,
-    options: dict[str, Any] | None = None,
-    destination: str | None = None,
-) -> dict:
-    """Combine several forecasts (same grid and shape) into one multi-model
-    ensemble. strategy: uniform, skill_weighted, bma, drop_worst. obs_path is
-    required for skill-based weighting and for the prediction-error-variance
-    diagnostic. Returns the combined forecast path plus weights, member names,
-    effective N, and whether the skill gate passed."""
+    forecast_paths: Annotated[list[str], Field(
+        description="NetCDF paths of the member forecasts, all on the same grid with the same "
+                    "dims. File stems become the member names.", min_length=1)],
+    obs_path: Annotated[str | None, Field(
+        description="Observations (year, lat, lon). Required for skill-based weighting and for "
+                    "the prediction-error-variance diagnostic; optional for uniform.")] = None,
+    strategy: Annotated[Strategy, Field(
+        description='Combination strategy: "uniform" equal weights, "skill_weighted", "bma", '
+                    '"drop_worst".')] = "uniform",
+    optimize_ensemble: Annotated[bool, Field(
+        description="Fit the weights by cross-validated skill (needs obs). Falls back to uniform "
+                    "with a warning if the skill gate fails.")] = False,
+    primary_metric: Annotated[MetricName, Field(
+        description="Metric used to weight members when optimizing.")] = "rpss",
+    variable: VariableArg = None,
+    obs_variable: ObsVariableArg = None,
+    options: OptionsArg = None,
+    destination: DestinationArg = None,
+) -> EnsembleOut:
+    """Combine several forecasts into one multi-model ensemble.
+
+    Returns: the combined forecast file summary plus {weights, member_names,
+    member_cv_skill, effective_n, gate_passed, shrinkage_lambda,
+    safeguards_applied} and, when obs are given, "pev" (a file of per-cell
+    prediction error variance).
+    Example: ensemble(forecast_paths=["cfsv2_bcsd.nc", "ecmwf_bcsd.nc"],
+    obs_path="chirps_mam.nc", strategy="skill_weighted", optimize_ensemble=true)
+    """
     if not forecast_paths:
         raise ToolError("forecast_paths must not be empty.")
     forecasts = [load_array(p, variable) for p in forecast_paths]
@@ -452,30 +648,40 @@ def ensemble(
     return out
 
 
-@mcp.tool()
+@tool()
 def skill(
-    forecast_path: str,
-    obs_path: str,
-    metrics: list[str] | str | None = None,
-    spatial: bool = False,
-    include_diagrams: bool = False,
-    forecast_variable: str | None = None,
-    obs_variable: str | None = None,
-    options: dict[str, Any] | None = None,
-    destination: str | None = None,
-) -> dict:
-    """Score a forecast against observations. metrics: a list of names, a
-    preset ("svslrf" = rpss+roc+reliability, "all"), or omitted for rpss.
-    Tercile metrics need (year, tercile, lat, lon) CV probabilities;
-    deterministic metrics take continuous fields. spatial=true also writes
-    per-cell skill maps to NetCDF and returns the path. include_diagrams adds
-    ROC / reliability curve data inline."""
+    forecast_path: Annotated[str, Field(
+        description="NetCDF path of the forecast to score. Tercile metrics (rpss, roc, reliability, "
+                    "...) need (year, tercile, lat, lon) CV probabilities; deterministic metrics "
+                    "(pearson_r, rmse, ...) take (year, lat, lon) fields on the obs grid.")],
+    obs_path: ObsPathArg,
+    metrics: Annotated[list[MetricName] | MetricPreset | None, Field(
+        description='Metric names, or a preset: "svslrf" (rpss + roc + reliability, the WMO '
+                    'standard) or "all". Default ["rpss"].')] = None,
+    spatial: Annotated[bool, Field(
+        description="Also compute per-cell skill maps and write them to NetCDF.")] = False,
+    include_diagrams: Annotated[bool, Field(
+        description="Return ROC / reliability curve data inline (can be large).")] = False,
+    forecast_variable: VariableArg = None,
+    obs_variable: ObsVariableArg = None,
+    options: OptionsArg = None,
+    destination: DestinationArg = None,
+) -> SkillOut:
+    """Score a forecast against observations with the named metrics. Scores are
+    honest only if the forecast is a cross-validated hindcast (from
+    downscale/optimize/calibrate with cv), never a fit on the same years.
+
+    Returns: {scores: {metric: value}, metadata} plus "spatial_path" and
+    "spatial" (a file summary) when spatial=true, and "diagrams" on request.
+    Example: skill(forecast_path="cv_terciles.nc", obs_path="chirps_mam.nc",
+    metrics="svslrf", spatial=true)
+    """
     fc = load_array(forecast_path, forecast_variable)
     obs = load_array(obs_path, obs_variable)
     kwargs = dict(options or {})
     report = _call(africas2s.skill, fc, obs, metrics=metrics, spatial=spatial, **kwargs)
     payload = report.to_dict()
-    out: dict[str, Any] = {
+    out: SkillOut = {
         "scores": _json_safe(payload.get("scores", {})),
         "metadata": _json_safe(payload.get("metadata", {})),
     }
@@ -497,19 +703,27 @@ def skill(
     return out
 
 
-@mcp.tool()
+@tool()
 def to_tercile(
-    forecast_path: str,
-    obs_path: str,
-    method: str = "counting",
-    forecast_variable: str | None = None,
-    obs_variable: str | None = None,
-    destination: str | None = None,
-) -> dict:
-    """Convert a single-year ensemble forecast (member, lat, lon) into tercile
-    probabilities using the observation climatology (year, lat, lon) for the
-    boundaries. method: "counting" (member counts) or "gaussian". Do not use on
-    cross-validated hindcasts: that leaks the held-out year."""
+    forecast_path: Annotated[str, Field(
+        description="NetCDF path of a single-year ensemble forecast (member, lat, lon) on the obs grid.")],
+    obs_path: Annotated[str, Field(
+        description="Observation climatology (year, lat, lon) that sets the tercile boundaries.")],
+    method: Annotated[TercileMethod, Field(
+        description='"counting" (fraction of members per tercile) or "gaussian" (parametric fit).')] = "counting",
+    forecast_variable: VariableArg = None,
+    obs_variable: ObsVariableArg = None,
+    destination: DestinationArg = None,
+) -> DatasetSummary:
+    """Convert a single-year ensemble forecast into below/normal/above tercile
+    probabilities. Do not use on cross-validated hindcasts: it would leak the
+    held-out year into the boundaries (use downscale output_type="tercile" or
+    calibrate cv="loyo" for those).
+
+    Returns: {path, dims, coords, variables, attrs, size_bytes, request}; the
+    file holds "probability" (tercile, lat, lon).
+    Example: to_tercile(forecast_path="cfsv2_2025_bcsd.nc", obs_path="chirps_mam.nc")
+    """
     fc = load_array(forecast_path, forecast_variable)
     obs = load_array(obs_path, obs_variable)
     probs = _call(_to_tercile, fc, obs, method=method)
@@ -531,18 +745,25 @@ def _savefig(destination: str | None, *parts: Any, params: dict, dpi: int = 150)
     return out_path
 
 
-@mcp.tool()
+@tool()
 def plot_terciles(
-    probs_path: str,
-    title: str | None = None,
-    variable_kind: str = "precip",
-    smooth: bool = False,
-    variable: str | None = None,
-    destination: str | None = None,
-) -> dict:
-    """Render a (tercile, lat, lon) probability forecast as a dominant-tercile
-    map (IRI / PyCPT convention) and save it as PNG. variable_kind: "precip"
-    (below=red, above=green) or "temp" (below=blue, above=red)."""
+    probs_path: Annotated[str, Field(
+        description="NetCDF path of a (tercile, lat, lon) probability forecast.")],
+    title: Annotated[str | None, Field(description="Map title.")] = None,
+    variable_kind: Annotated[VariableKind, Field(
+        description='Colour convention: "precip" (below=red, above=green) or "temp" '
+                    '(below=blue, above=red).')] = "precip",
+    smooth: Annotated[bool, Field(description="Smooth the field before drawing.")] = False,
+    variable: VariableArg = None,
+    destination: Annotated[str | None, Field(
+        description="Output .png path. Default: a stable name under AFRICAS2S_MCP_WORKDIR.")] = None,
+) -> PlotOut:
+    """Render a tercile probability forecast as a dominant-tercile map (IRI /
+    PyCPT convention) and save it as PNG.
+
+    Returns: {path, format: "png", request}.
+    Example: plot_terciles(probs_path="cfsv2_2025_terciles.nc", title="MAM 2025 precipitation")
+    """
     import matplotlib
 
     matplotlib.use("Agg")
@@ -553,19 +774,25 @@ def plot_terciles(
     return {"path": path, "format": "png", "request": params}
 
 
-@mcp.tool()
+@tool()
 def plot_field(
-    path: str,
-    title: str | None = None,
-    cmap: str | None = None,
-    vmin: float | None = None,
-    vmax: float | None = None,
-    cbar_label: str | None = None,
-    variable: str | None = None,
-    destination: str | None = None,
-) -> dict:
-    """Render a 2-D (lat, lon) field (a skill map, anomaly, or deterministic
-    forecast) as a map and save it as PNG. Extra dims must already be reduced."""
+    path: Annotated[str, Field(
+        description="NetCDF path of a 2-D (lat, lon) field: a skill map, anomaly, or deterministic "
+                    "forecast. Reduce or select any other dims first.")],
+    title: Annotated[str | None, Field(description="Map title.")] = None,
+    cmap: Annotated[str | None, Field(description="Matplotlib colormap name, e.g. \"RdBu_r\".")] = None,
+    vmin: Annotated[float | None, Field(description="Colour scale minimum.")] = None,
+    vmax: Annotated[float | None, Field(description="Colour scale maximum.")] = None,
+    cbar_label: Annotated[str | None, Field(description="Colour bar label.")] = None,
+    variable: VariableArg = None,
+    destination: Annotated[str | None, Field(
+        description="Output .png path. Default: a stable name under AFRICAS2S_MCP_WORKDIR.")] = None,
+) -> PlotOut:
+    """Render a 2-D (lat, lon) field as a map and save it as PNG.
+
+    Returns: {path, format: "png", request}.
+    Example: plot_field(path="skill_rpss.nc", title="RPSS", cmap="RdBu_r", vmin=-0.5, vmax=0.5)
+    """
     import matplotlib
 
     matplotlib.use("Agg")
