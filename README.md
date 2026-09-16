@@ -213,6 +213,26 @@ Multi-model input uses the same `{model: (hindcast, forecast)}` shape as `ereg`,
 
 Runnable examples: `examples/demo_ensemble_regression.py` (eReg) and `examples/demo_logistic_wvg.py` (logit).
 
+## MCP server
+
+AfricaS2S ships a [Model Context Protocol](https://modelcontextprotocol.io) server so AI agents (Claude Code, Beaker, Codex, and any other MCP client) can downscale, calibrate, ensemble, verify, and plot as tools.
+
+```bash
+pip install 'africas2s[mcp]'
+africas2s-mcp                    # stdio transport (what MCP clients spawn)
+africas2s-mcp --transport streamable-http --port 8001
+```
+
+Register it with a client, for example in Claude Code:
+
+```bash
+claude mcp add africas2s -- africas2s-mcp
+```
+
+Tools: `list_registry`, `describe_dataset`, `downscale`, `optimize`, `calibrate`, `ensemble`, `skill`, `to_tercile`, `plot_terciles`, and `plot_field`. Every gridded input is a path to a NetCDF file (one data variable, or `variable=` to pick one) and every gridded output is written under `AFRICAS2S_MCP_WORKDIR` (default `~/.africas2s/mcp`) and returned as a path plus a compact summary; scalars such as skill scores and ensemble weights come back inline. This pairs with the [acmadDL](https://github.com/ACMAD-Niamey/acmadDL) MCP server, whose `fetch` writes exactly the files these tools read, but any NetCDF with the shapes in [Core API](#core-api) works. The Agent Skill is exposed as resources (`africas2s://skill`, `africas2s://skill/references/{name}`).
+
+The server is a thin wrapper over the public API, so method behaviour, cross-validation rules, and output shapes are exactly as documented above. Inspect it interactively with `npx @modelcontextprotocol/inspector africas2s-mcp`.
+
 ## Relationship to Rosetta
 
 Rosetta handles data acquisition and normalization; AfricaS2S handles forecasting and verification. The interface between them is standardized xarray, so AfricaS2S stays source-agnostic and works with any data prepared the same way.

@@ -49,9 +49,16 @@ validation = [
     "setuptools<80",
     "xsdba",
 ]
+# MCP server (`africas2s-mcp`): exposes downscale / calibrate / ensemble /
+# skill / plotting as Model Context Protocol tools for AI agents, exchanging
+# data as NetCDF files. See README "MCP server".
+mcp = ["mcp>=1.2"]
 # GPU dependencies for CorrDiff (torch, earth2studio, physicsnemo) are not on
 # PyPI and must be installed manually.  See src/africas2s/methods/corrdiff.py
 # for instructions.
+
+[project.scripts]
+africas2s-mcp = "africas2s.mcp.server:main"
 
 [tool.uv]
 # The nightly workflow installs rosetta into this env via
