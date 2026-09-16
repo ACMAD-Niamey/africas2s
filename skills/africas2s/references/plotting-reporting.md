@@ -14,6 +14,10 @@ Plotting/reporting live in `africas2s.plotting` and `africas2s.reporting`. Impor
 | A `CompletionResult` (analog scenario completion) | `ds.plot_accumulation_scenarios(result)` |
 | Two index series against each other (SST vs rainfall, coloured by outcome) | `ds.plot_index_scatter(x, y, color_by=...)` |
 | Styled tercile map onto your own subplot `ax` | `ds.render_styled_terciles(ax, probs, style)` |
+| Several forecasts as one grid (per-model, per-method, tercile and/or continuous) | `ds.plot_matrix(panels, style=...)` |
+| Component forecasts plus the combined objective | `ds.plot_components_objective(components, objective, style=...)` |
+| A regional centre's colour language from a JSON style file | `ds.TercileStyle.from_json(path, dry_mask=..., ...)` |
+| The style's dry/clip masks as data masks (e.g. before `write_terciles`) | `ds.region_masks(field, style)` |
 | `SkillReport` with `spatial=True` | `plot_skill_maps(report, ["rpss", ...])`; full PDF: `report.to_pdf(...)` |
 | CV tercile hindcasts + obs | `plot_reliability_diagram(cv_terc, obs)` |
 | `ComparisonReport` from `skill_compare` | `.to_table()` / `.to_heatmap(path)` / `.to_pdf(path)` |
@@ -34,19 +38,31 @@ ds.plot_choropleth(...)          # = plotting.maps.plot_choropleth
 ds.natural_earth_borders(...)    # = plotting.maps.natural_earth_borders
 ds.plot_accumulation_scenarios(...)  # = plotting.scenarios.plot_accumulation_scenarios
 ds.plot_index_scatter(...)           # = plotting.scenarios.plot_index_scatter
+ds.plot_index_evolution(...)        # = plotting.scenarios.plot_index_evolution
+ds.plot_matrix(...)                  # = plotting.panels.plot_matrix
+ds.plot_components_objective(...)    # = plotting.panels.plot_components_objective
+ds.tercile_legend_handles(...)       # = plotting.panels.tercile_legend_handles
+ds.region_masks(...)                 # = plotting.forecasts.region_masks
+ds.TercileStyle                      # = plotting.style.TercileStyle (.named / .from_json)
+ds.tercile_diverging_cmap(...)       # = plotting.style.tercile_diverging_cmap
 ```
 
 ## Forecast maps
 
 ```python
 plot_tercile_forecast(pr_fcst, *, style=None, ax=None, title=None,
-                      variable_kind="precip", legend=True)
+                      variable_kind="precip", legend=True, smooth=False)
 ```
-IRI-style dominant-tercile map from a `(tercile, lat, lon)` array. `variable_kind` ∈ `{"precip", "temp"}` selects the palette; color intensity scales with `(max_prob − 1/3)`, saturating at 0.37.
+IRI-style dominant-tercile map from a `(tercile, lat, lon)` array. `variable_kind` ∈ `{"precip", "temp"}` selects the palette; color intensity scales with `(max_prob − 1/3)`, saturating at 0.37. `smooth` (needs `style`) renders cubic-refined filled contours instead of grid cells, the GHACOF/ACMAD outlook look; `True` = refinement factor 4, or pass an int factor. Smoothing only reshapes the drawn boundaries, never invents data outside the field's footprint.
 
 ```python
 plot_field(field, *, style=None, ax=None, cmap="RdBu_r", vmin=None, vmax=None,
-           center=None, title=None, grey_dry=True) -> mappable
+           center=None, levels=None, extend="both", smooth=False,
+           title=None, grey_dry=True) -> mappable | None
+    # levels = discrete bin edges (BoundaryNorm) — the classified-scale
+    # convention of operational anomaly/onset maps; exclusive with
+    # vmin/vmax/center. smooth (needs levels) contours the refined field;
+    # returns None (and writes "no data" on the axes) if nothing is finite.
 plot_tercile_comparison(forecast, reference, *, style=None, axes=None,
                         labels=("forecast", "reference", "difference"),
                         diff_cmap="BrBG", diff_limit=40.0, title=None) -> (axes, diff_mappable)
@@ -54,10 +70,92 @@ plot_tercile_comparison(forecast, reference, *, style=None, axes=None,
 plot_deterministic_forecast(det_fcst, *, ax=None, title=None, cmap="RdBu_r", center=None)
 plot_exceedance_probability(exceedance_prob, threshold, *, ax=None)
 plot_flex_pdf(fcst_mu, fcst_scale, climo_mu, climo_scale, *, location, ax=None)  # location=(lon, lat)
-render_styled_terciles(ax, probs, style, *, title=None, small=False)  # -> ax
+render_styled_terciles(ax, probs, style, *, title=None, small=False, smooth=False)  # -> ax
     # thin wrapper over plot_tercile_forecast(style=) for multi-panel grids;
     # small=True drops the legend and axis ticks. probs is (tercile, lat, lon).
+region_masks(like, style) -> (dry, outside)
+    # the style's dry_mask and clip_to as bool DataArrays on `like`'s grid
+    # (all-False where the style field is unset) — mask the DATA the way the
+    # plots mask the display, e.g. objective.where(~outside).where(~dry)
+    # before write_terciles.
 ```
+
+## Panel grids, composites, and style files
+
+One call per figure for the grids every workflow needs; all live in
+`plotting.panels` / `plotting.style` and are re-exported at top level.
+
+```python
+plot_matrix(panels, *, style=None, ncols=3, skill_mask=None, smooth=False,
+            variable_kind="precip", legend=True, legend_detailed=False,
+            cmap="RdBu_r", levels=None, vmin=None, vmax=None, center=None,
+            extend="both", cbar_label=None, suptitle=None,
+            panel_size=(4.2, 3.9), figsize=None) -> Figure
+```
+Grid of maps. `panels` is `{title: DataArray}` or an iterable of
+`(title, data)` / `(title, data, style)`; a `(tercile, lat, lon)` entry renders
+as a styled tercile map, a `(lat, lon)` entry as a continuous field, and the
+two mix freely (e.g. raw-anomaly and post-CCA panels side by side). Tercile
+panels share one figure-level legend (`legend_detailed=True` shows every
+probability band); continuous panels share one scale and one colorbar
+(auto-computed vmin/vmax over all continuous panels unless given, symmetric
+about `center` when set). A per-panel style overrides the figure style — e.g.
+`(title, objective, replace(style, dry_mask=None))` for a dry-mask-off panel.
+`skill_mask` (bool, True = insufficient skill) blanks cells on every panel at
+display time; coordinate-bearing masks are aligned per panel, bare arrays must
+match. For mask-before-combine semantics use `ds.mask_by_skill` on the data.
+Panel titles draw as in-map chips; per-panel tick/gridline labels are stripped.
+Trailing grid cells are hidden. Works without cartopy (plain-axes fallback).
+
+```python
+plot_components_objective(components, objective, *, objective_label="Objective",
+                          ncols=2, **plot_matrix_kwargs) -> Figure
+```
+The components-plus-final composite: every component forecast in a grid with
+the combined objective as the last panel, bold label and heavier frame.
+
+```python
+tercile_legend_handles(style=None, *, variable_kind="precip", detailed=False,
+                       include_dry=None, dry_label="Dry-masked / no data") -> [Patch]
+```
+The palette-derived legend handles, for custom figures. No style: 3 saturated
+patches per `variable_kind`. With a style: one patch per category, or per
+probability band (`detailed=True`); `include_dry` defaults to whether the
+style carries a `dry_mask`.
+
+```python
+TercileStyle.named(name="icpac", **overrides) -> TercileStyle
+TercileStyle.list_named() -> {name: provenance}
+TercileStyle.from_json(path, **overrides) -> TercileStyle
+tercile_diverging_cmap(style, *, name="tercile_diverging", n=256) -> Colormap
+    # strongest-below → white → strongest-above ramp for anomaly/tilt/skill panels
+```
+Institutional colour languages ship inside the package as JSON style files
+(`src/africas2s/plotting/styles/`) and load by name with `named()`; `icpac` is
+the default when no name is given. Keyword overrides win and carry the
+non-JSON fields (`TercileStyle.named("noaa-nmme", dry_mask=too_dry,
+clip_to=ECCAS, extent=(6, 32, -18, 24))`).
+
+| name | what it is |
+|---|---|
+| `icpac` (default) | ICPAC rainfall scheme + criteria from the RCC colormap sheet: orange→red below, cyan near-normal, green above; six bands 40-50 … 90-100 %; a leading category under 40 % is white ("no dominant category"); dry mask `#BEBEBE`, lakes `#73B2FF` |
+| `icpac-temperature` | the same sheet's temperature ramps (blues cooler, cyans near, yellow→dark-red warmer); use with `variable_kind="temp"` |
+| `noaa-nmme` | the NOAA CPC NMME tercile-summary display rules as relayed by CAPC-AC: dominant only if leading > 38 % **and** the opposite outer tercile < 33 % (`secondary_max=33`) — a near-normal runner-up does not blank an outer tercile, while a leading near-normal needs both outers under 33 % — else white; blue wet, orange dry, green normal; grey dry season. The rules name colours, not hex values — the ramps are standard sequential Blues/Oranges/Greens, banded 38-50-60-70-80-90-100 |
+| `ghacof` | the GHACOF outlook graphics (yellow/cyan/green, 5 bands from 33.3 %, lakes on) — the language the ICPAC MAM/OND and CAPC-AC AMJJ replications used |
+| `acmad` | ACMAD continental palette (orange/grey/green, 6 bands with the 33.33–36 extra step) |
+
+A workflow that owns its own palette keeps it as a JSON file of the same shape
+and loads it with `from_json(path, **overrides)`. Keys starting with `_` are
+comments; unknown keys raise. `examples/styles/` carries copies of `ghacof.json`
+and `acmad.json` as templates.
+
+**Dominance rules.** Two style fields decide when a valid cell is left white:
+the first `prob_bins` edge (the leading probability must reach it — with the
+GHACOF/ACMAD 33.3 edge that is always true, with 40 or 38 it is a real
+threshold) and `secondary_max` (when set, the non-leading OUTER tercile(s) must be
+under it). Both the cell-based and the `smooth=` contour renderers honour them,
+and the legends (`legend_detailed=True`, `tercile_legend_handles`) gain a white
+"No dominant category" patch whenever a rule can leave a cell unfilled.
 
 ## General field maps, choropleths, and monitoring plots
 
@@ -124,6 +222,23 @@ the analogs) draws heavier annotated markers (`highlight_color` fills them, else
 `ErrorBounds` or `(lower, upper)` pair — brackets it. `trendline` adds an OLS fit (with R² if
 `trendline_annotate`). Returns a `Figure`.
 
+## Index evolution plume
+
+```python
+plot_index_evolution(curves, analogs=None, *, target_year=None, highlight=None,
+                     labels=None, colors=None, ax=None, title=None, ylabel=None,
+                     zero_line=True, figsize=(11, 4.6)) -> Figure
+```
+The "which past years looked like this one" plume: every year's index curve in
+grey, the analog years in colour (best first), the target year in black over
+the steps it has actually reached (markers on each observed step, "(to date)"
+in the legend when partial). `curves` is the `(year, step)` array
+`ds.analogs_from_evolution` scored — e.g. `ds.seasonal_stack(oni, (1, 12),
+cadence="monthly")` — and when `analogs` came from that selector the legend
+annotates each analog with its `r` and `mad`. `labels` names the steps (the
+twelve overlapping-season codes `DJF … NDJ` for an ONI curve); `highlight`
+colours years without an `AnalogSet`; `zero_line=False` for an absolute index.
+
 ## Diagnostics
 
 ```python
@@ -140,15 +255,18 @@ plot_cca_modes(cca_fit, n_modes=3)
 @dataclass
 class TercileStyle:
     below_colors: list[str]; normal_colors: list[str]; above_colors: list[str]
-    prob_bins: list[float]        # percent edges; len == n_colors + 1
+    prob_bins: list[float]        # percent edges; len == n_colors + 1; a leading
+                                  # probability under prob_bins[0] is "no dominant category"
     dry_mask = None; dry_color = "#bebebe"
     clip_to = None                # list of country NAMEs or a shapely geometry
     lakes = False; lake_color = "#78b8f8"
     nodata_color = "#ffffff"
     extent = None                 # (lon_w, lon_e, lat_s, lat_n)
+    secondary_max = None          # percent; when set, the NON-leading OUTER tercile(s) must be
+                                  # under it for the cell to be filled (NMME: 33)
 ```
 
-Pass as `style=` to the tercile plotting functions to control palette, probability binning, dry masking, country clipping, lakes, and extent.
+Pass as `style=` to the tercile plotting functions to control palette, probability binning, dominance rules, dry masking, country clipping, lakes, and extent. `TercileStyle.named(name="icpac", **overrides)` builds one of the packaged colour languages (`icpac`, `icpac-temperature`, `noaa-nmme`, `ghacof`, `acmad`; `list_named()` enumerates them); `TercileStyle.from_json(path, **overrides)` builds one from a JSON style file a workflow owns (see "Panel grids, composites, and style files").
 
 ## Reports
 
@@ -178,7 +296,7 @@ ds.tercile_mae(candidate_probs, "reference.nc")  # MAE in percentage points vs a
 ## Figures, saving, and headless use
 
 - No plot function calls `plt.show()` or writes a file — only the report methods (`to_pdf`, `to_heatmap`, `to_geotiff`) take a path. Save maps yourself: `plt.savefig("map.png", dpi=200, bbox_inches="tight")`.
-- Single-panel functions accept `ax=` so you can compose them into your own subplot grids; grid-producing functions (`plot_skill_maps`, `plot_eof_modes`, `plot_cca_modes`, `plot_tercile_comparison`) build their own figure and return it (or its axes) — save via the returned object.
-- Return values differ by function: `plot_tercile_forecast`/`plot_deterministic_forecast`/`plot_exceedance_probability` return the figure; `plot_field` returns the mappable (attach your own colorbar); `plot_tercile_comparison` returns `(axes, diff_mappable)`.
+- Single-panel functions accept `ax=` so you can compose them into your own subplot grids; grid-producing functions (`plot_skill_maps`, `plot_eof_modes`, `plot_cca_modes`, `plot_tercile_comparison`, `plot_matrix`, `plot_components_objective`) build their own figure and return it (or its axes) — save via the returned object.
+- Return values differ by function: `plot_tercile_forecast`/`plot_deterministic_forecast`/`plot_exceedance_probability`/`plot_matrix`/`plot_components_objective` return the figure; `plot_field` returns the mappable (attach your own colorbar), or `None` when a smooth render finds nothing finite; `plot_tercile_comparison` returns `(axes, diff_mappable)`.
 - Headless/CI: set `MPLBACKEND=Agg` (or `matplotlib.use("Agg")` before importing pyplot).
-- Cartopy fallback applies only to the tercile/forecast maps (`forecasts.py`): without cartopy they fall back to geopandas Natural Earth outlines, then plain axes. `plot_skill_maps`, `plot_domains`, `plot_eof_modes`, and `plot_cca_modes` hard-require cartopy and raise `ImportError` without it.
+- Cartopy fallback applies to the tercile/forecast maps (`forecasts.py`) and the panel grids (`panels.py`): without cartopy they fall back to geopandas Natural Earth outlines, then plain axes. `plot_skill_maps`, `plot_domains`, `plot_eof_modes`, and `plot_cca_modes` hard-require cartopy and raise `ImportError` without it.

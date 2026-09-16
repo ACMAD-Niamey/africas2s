@@ -372,3 +372,97 @@ def test_analogset_rejects_years_absent_from_its_scores():
 
 def test_analogset_repr_names_the_selector(nino34):
     assert "index" in repr(analogs_from_index(nino34, target=2.3, n=2))
+
+
+# --- analogs_from_evolution ------------------------------------------------
+
+from africas2s.analog import analogs_from_evolution  # noqa: E402
+
+CURVE_YEARS = np.arange(1990, 2011)
+
+
+def _curves():
+    """(year, step=12): a sinusoid per year, three planted lookalikes of 2010.
+
+    2010 is observed through step 5 only. 1997 repeats 2010 exactly, 2005 is
+    2010 shifted up by 0.5 (same shape, r=1, mad=0.5), 2001 is 2010 plus a
+    small wobble (r just under 1, mad small), 1998 is the mirror image.
+    """
+    step = np.arange(12)
+    base = np.sin(np.pi * step / 11.0)
+    rng = np.random.default_rng(0)
+    values = np.stack([0.3 * rng.standard_normal(12) for _ in CURVE_YEARS])
+    target = 1.2 * base + 0.4
+    values[CURVE_YEARS == 2010] = target
+    values[CURVE_YEARS == 1997] = target
+    values[CURVE_YEARS == 2005] = target + 0.5
+    values[CURVE_YEARS == 2001] = target + 0.1 * np.array([1, -1] * 6)
+    values[CURVE_YEARS == 1998] = -target
+    values[CURVE_YEARS == 2010, 6:] = np.nan          # this year: half observed
+    return xr.DataArray(values, dims=("year", "step"),
+                        coords={"year": CURVE_YEARS, "step": step}, name="oni")
+
+
+def test_evolution_scores_on_the_observed_steps_only():
+    got = analogs_from_evolution(_curves(), target_year=2010, candidates=CURVE_YEARS[:-1])
+    assert got.metadata["n_steps"] == 6 and got.metadata["steps"] == list(range(6))
+    assert got.metadata["selector"] == "evolution"
+
+
+def test_identical_evolution_ranks_first():
+    got = analogs_from_evolution(_curves(), target_year=2010, n=3, candidates=CURVE_YEARS[:-1])
+    assert got.years[0] == 1997
+    assert set(got.years[1:]) == {2001, 2005}
+    assert got.metadata["r"][1997] == pytest.approx(1.0)
+    assert got.metadata["mad"][1997] == pytest.approx(0.0)
+
+
+def test_target_year_is_its_own_best_analog_unless_excluded():
+    # 1997 repeats 2010 exactly, so the two tie for first; both are perfect.
+    got = analogs_from_evolution(_curves(), target_year=2010, n=2)
+    assert set(got.years) == {1997, 2010}
+    assert got.metadata["mad"][2010] == 0.0 and got.metadata["r"][2010] == pytest.approx(1.0)
+
+
+def test_the_two_criteria_pull_in_different_directions():
+    by_r = analogs_from_evolution(_curves(), target_year=2010, metric="correlation",
+                                  candidates=[2001, 2005])
+    by_mad = analogs_from_evolution(_curves(), target_year=2010, metric="mad",
+                                    candidates=[2001, 2005])
+    assert by_r.years[0] == 2005       # same shape exactly, just offset
+    assert by_mad.years[0] == 2001     # closer in level, slightly wobblier
+
+
+def test_mirror_image_ranks_last_by_correlation():
+    got = analogs_from_evolution(_curves(), target_year=2010, metric="correlation",
+                                 candidates=CURVE_YEARS[:-1])
+    assert got.years[-1] == 1998
+
+
+def test_candidates_missing_an_observed_step_are_excluded():
+    curves = _curves()
+    curves.loc[dict(year=2005, step=2)] = np.nan
+    got = analogs_from_evolution(curves, target_year=2010, candidates=CURVE_YEARS[:-1])
+    assert 2005 not in got.years and np.isnan(float(got.scores.sel(year=2005)))
+
+
+def test_evolution_rejects_bad_inputs():
+    curves = _curves()
+    with pytest.raises(ValueError, match="metric"):
+        analogs_from_evolution(curves, target_year=2010, metric="cosine")
+    with pytest.raises(ValueError, match="not in curves.year"):
+        analogs_from_evolution(curves, target_year=2030)
+    with pytest.raises(ValueError, match="'year' and 'step'"):
+        analogs_from_evolution(curves.rename(step="month"), target_year=2010)
+    curves.loc[dict(year=2010)] = np.nan
+    curves.loc[dict(year=2010, step=0)] = 1.0
+    with pytest.raises(ValueError, match="observed step"):
+        analogs_from_evolution(curves, target_year=2010)
+
+
+def test_evolution_composes_with_other_selectors():
+    curves = _curves()
+    shape = analogs_from_evolution(curves, target_year=2010, candidates=CURVE_YEARS[:-1])
+    warm = analogs_where(_index(curves.isel(step=0).values, years=CURVE_YEARS) > 0.3)
+    both = (shape & warm).top(2)
+    assert 1997 in both.years

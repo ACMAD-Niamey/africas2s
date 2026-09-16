@@ -94,7 +94,7 @@ result.consensus; result.percentile; result.accumulation()  # median outcome + w
 ds.plot_accumulation_scenarios(result, climatology=clim)
 ```
 
-- **Analog selection** (`ds.analogs_from_years / _from_index / _from_field / where`) → an `AnalogSet` (scores every candidate, composes with `&` `|` `.top(n)`).
+- **Analog selection** (`ds.analogs_from_years / _from_index / _from_field / _from_evolution / where`) → an `AnalogSet` (scores every candidate, composes with `&` `|` `.top(n)`); `_from_evolution` ranks years on the *shape* of an index curve over the months observed so far (Niño3.4 analogues), plotted with `ds.plot_index_evolution`.
 - **Climate positioning** (`ds.percentile_of`, `ds.percent_of_normal`, `ds.rank_of_record`, `ds.frequency_below`, `ds.accumulate`, `ds.seasonal_reduce`, `ds.seasonal_stack`) → where a value sits in a reference record.
 - **Scenario completion** (`ds.complete` → `CompletionResult`) → one plausible end-of-season per analog; omit `forecast=` and run twice to isolate what a dynamic forecast adds.
 - **Scalar-series calibration** (`ds.quantile_map`, `ds.error_bounds`) → bias-correct / bracket a forecast index, not a field.
@@ -157,5 +157,5 @@ obs = rosetta.fetch("obs/era5", "precip", region=[-5, 15, 33, 48],
 - [references/aggregations.md](references/aggregations.md): rainy-season onset/cessation/season length and dry-spell statistics from daily rainfall
 - [references/methods.md](references/methods.md) — downscale methods, calibrators, ensemble strategies (+ `pool_ensembles`), tercile combination/masking (`combine`), CV schemes, registries
 - [references/metrics-and-terciles.md](references/metrics-and-terciles.md) — every metric's semantics + tercile conversion discipline + predictor-significance tools
-- [references/plotting-reporting.md](references/plotting-reporting.md) — which plot for which artifact, forecast/skill maps, field maps & choropleths, scenario/index plots, SVSLRF PDFs, GeoTIFF/NetCDF export, headless figure handling
+- [references/plotting-reporting.md](references/plotting-reporting.md) — which plot for which artifact, forecast/skill maps, panel grids & components+objective composites (`plot_matrix`), packaged colour languages (`TercileStyle.named`: `icpac` default, `icpac-temperature`, `noaa-nmme`, `ghacof`, `acmad`) and workflow JSON style files (`TercileStyle.from_json`), dominance rules (`prob_bins[0]`, `secondary_max`), index-evolution plume (`plot_index_evolution`), field maps & choropleths, scenario/index plots, SVSLRF PDFs, GeoTIFF/NetCDF export, headless figure handling
 - [references/troubleshooting.md](references/troubleshooting.md) — error → cause table, environment/install setup, test markers, operational scripts, convention caveats

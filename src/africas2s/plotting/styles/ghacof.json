@@ -1,0 +1,37 @@
+{
+  "_provenance": "ICPAC/GHACOF colour language: identical hex lists appear in the ICPAC MAM/OND and CAPC-AC replications and match the GHACOF outlook graphics. Also used by CAPC-AC for Central Africa so the products read as one family.",
+  "_usage": "africas2s.TercileStyle.named('ghacof', dry_mask=..., clip_to=..., extent=...)",
+  "below_colors": [
+    "#fcf3c8",
+    "#fae678",
+    "#f8d808",
+    "#e6b400",
+    "#d49e00"
+  ],
+  "normal_colors": [
+    "#eefcff",
+    "#e7f8f8",
+    "#d6efef",
+    "#c7e8e8",
+    "#c7e8e8"
+  ],
+  "above_colors": [
+    "#c9f5c2",
+    "#38f838",
+    "#34c818",
+    "#38a808",
+    "#188c08"
+  ],
+  "prob_bins": [
+    33.3,
+    40,
+    50,
+    60,
+    70,
+    100.01
+  ],
+  "dry_color": "#bebebe",
+  "lakes": true,
+  "lake_color": "#78b8f8",
+  "nodata_color": "#ffffff"
+}

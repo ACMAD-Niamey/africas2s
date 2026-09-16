@@ -18,7 +18,8 @@ from .climate import (
     seasonal_stack,
 )
 from .analog import (
-    AnalogSet, analogs_from_years, analogs_from_index, analogs_from_field, analogs_where,
+    AnalogSet, analogs_from_years, analogs_from_index, analogs_from_field,
+    analogs_from_evolution, analogs_where,
 )
 from .completion import complete, CompletionResult
 from .series import quantile_map, error_bounds, ErrorBounds
@@ -27,10 +28,15 @@ from .io import write_terciles, tercile_mae
 from .terrain import load_terrain
 from .combine import combine_terciles, mask_by_skill, dry_mask
 from .plotting.forecasts import plot_tercile_forecast as plot_terciles
-from .plotting.scenarios import plot_accumulation_scenarios, plot_index_scatter
+from .plotting.scenarios import (
+    plot_accumulation_scenarios, plot_index_scatter, plot_index_evolution,
+)
 from .plotting.maps import natural_earth_borders, plot_field_map, plot_choropleth
 from .plotting.style import TercileStyle
 from .plotting.forecasts import plot_field, plot_tercile_comparison, render_styled_terciles
+from .plotting.panels import plot_matrix, plot_components_objective, tercile_legend_handles
+from .plotting.forecasts import region_masks
+from .plotting.style import tercile_diverging_cmap
 from . import methods     # trigger registration
 from . import metrics     # trigger registration
 from .metrics import loo_predict, loo_corr, permutation_test, fdr
@@ -70,6 +76,7 @@ __all__ = [
     "analogs_from_years",
     "analogs_from_index",
     "analogs_from_field",
+    "analogs_from_evolution",
     "analogs_where",
     "complete",
     "CompletionResult",
@@ -90,6 +97,7 @@ __all__ = [
     "plot_terciles",
     "plot_accumulation_scenarios",
     "plot_index_scatter",
+    "plot_index_evolution",
     "plot_field_map",
     "plot_choropleth",
     "natural_earth_borders",
@@ -97,4 +105,9 @@ __all__ = [
     "plot_field",
     "render_styled_terciles",
     "plot_tercile_comparison",
+    "plot_matrix",
+    "plot_components_objective",
+    "tercile_legend_handles",
+    "region_masks",
+    "tercile_diverging_cmap",
 ]

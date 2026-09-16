@@ -15,7 +15,11 @@ among the historical analogs" argument — a RONI-versus-IOD scatter coloured by
 observed rainfall tercile, a West-Pacific-rainfall-versus-Kiremt-rainfall
 scatter, a forecast-versus-observed verification plot.
 
-Neither knows what it is plotting. Both take DataArrays and category labels.
+:func:`plot_index_evolution` draws the "which past years looked like this
+one" plume: every year's index curve in grey, the selected analogs in colour,
+this year in black over the steps it has actually reached.
+
+None of them knows what it is plotting. All take DataArrays and labels.
 """
 from __future__ import annotations
 
@@ -323,6 +327,98 @@ def plot_index_scatter(
         ax.legend(loc="best", frameon=False, fontsize=9)
     ax.grid(alpha=0.25, linewidth=0.6)
     fig.tight_layout()
+    return fig
+
+
+# Highlight colours for analog curves, best analog first: a warm ramp that
+# reads in order and stays distinct from the black target and grey plume.
+_ANALOG_COLORS = ["#d7301f", "#fc8d59", "#fdcc8a", "#7f2704", "#b35806", "#e08214"]
+
+
+def plot_index_evolution(curves, analogs=None, *, target_year=None, highlight=None,
+                         labels=None, colors=None, ax=None, title=None,
+                         ylabel=None, zero_line=True, figsize=(11, 4.6)):
+    """Plume of an index's evolution by year, with the analog years picked out.
+
+    Parameters
+    ----------
+    curves : xr.DataArray
+        ``(year, step)`` — the same array :func:`africas2s.analogs_from_evolution`
+        scored, e.g. ``seasonal_stack(oni, (1, 12), cadence="monthly")``.
+    analogs : AnalogSet, optional
+        The selection to highlight. Its ``metadata`` supplies ``target_year``
+        and, when it came from ``analogs_from_evolution``, the per-year ``r``
+        and ``mad`` that annotate the legend.
+    target_year : int, optional
+        The year drawn in black; defaults to ``analogs.metadata["target_year"]``.
+        Its curve is drawn only over the steps it has (a partly observed year
+        stops where the record stops, with markers on each observed step).
+    highlight : sequence of int, optional
+        Years to colour when there is no ``analogs`` (or in addition to it).
+    labels : sequence of str, optional
+        Tick labels for the step axis (e.g. the twelve overlapping-season
+        codes ``DJF … NDJ``); defaults to the ``step`` coordinate values.
+    colors : sequence of str, optional
+        Highlight colours, best analog first; cycled if shorter.
+    ax, title, ylabel, zero_line, figsize
+        Usual matplotlib plumbing. ``zero_line`` draws a reference at 0 (an
+        anomaly index); switch it off for an absolute index.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
+    if not {"year", "step"} <= set(curves.dims):
+        raise ValueError(
+            f"curves must have 'year' and 'step' dims, got {tuple(curves.dims)}")
+    plt, fig, ax = _new_fig(ax, figsize)
+    curves = curves.transpose("year", "step")
+    years = [int(y) for y in curves.year.values]
+    x = np.arange(curves.sizes["step"])
+
+    if target_year is None and analogs is not None:
+        target_year = analogs.metadata.get("target_year")
+    picked = [int(y) for y in (analogs.years if analogs is not None else [])]
+    picked += [int(y) for y in (highlight or []) if int(y) not in picked]
+    colors = list(colors or _ANALOG_COLORS)
+    meta = analogs.metadata if analogs is not None else {}
+    r_by_year, mad_by_year = meta.get("r", {}), meta.get("mad", {})
+
+    for y in years:
+        if y == target_year or y in picked:
+            continue
+        ax.plot(x, curves.sel(year=y).values, color="0.85", linewidth=0.8, zorder=1)
+    for k, y in enumerate(picked):
+        if y not in years:
+            raise ValueError(f"highlighted year {y} is not in curves.year")
+        label = str(y)
+        if y in r_by_year and y in mad_by_year:
+            label += f" (r={r_by_year[y]:+.2f}, mad={mad_by_year[y]:.2f})"
+        ax.plot(x, curves.sel(year=y).values, color=colors[k % len(colors)],
+                linewidth=2.3, zorder=3, label=label)
+    if target_year is not None:
+        if target_year not in years:
+            raise ValueError(f"target_year {target_year} is not in curves.year")
+        t = np.asarray(curves.sel(year=target_year).values, dtype=float)
+        have = np.isfinite(t)
+        partial = bool(have.any()) and not bool(have.all())
+        ax.plot(x[have], t[have], color="black", linewidth=3.0, marker="o",
+                markersize=4, zorder=4,
+                label=f"{target_year} observed" + (" (to date)" if partial else ""))
+
+    if zero_line:
+        ax.axhline(0, color="0.4", linewidth=0.8, zorder=0)
+    ax.grid(alpha=0.25)
+    ax.set_xticks(x)
+    ax.set_xticklabels([str(v) for v in (labels if labels is not None
+                                         else curves.step.values)])
+    if ylabel is None:
+        ylabel = curves.name or "index"
+    ax.set_ylabel(ylabel)
+    if title:
+        ax.set_title(title, fontweight="bold")
+    if picked or target_year is not None:
+        ax.legend(fontsize=9, loc="upper left")
     return fig
 
 

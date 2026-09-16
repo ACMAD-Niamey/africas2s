@@ -3,6 +3,8 @@
 from pathlib import Path
 
 import numpy as np
+import xarray as xr
+
 from .._optional import require_optional
 
 
@@ -19,14 +21,69 @@ _NE_COAST = _NE_ROOT / "physical" / "ne_50m_coastline.shp"
 _NE_BORDERS = _NE_ROOT / "cultural" / "ne_50m_admin_0_boundary_lines_land.shp"
 
 
-def _tercile_codes(probs, prob_bins):
+def _no_dominant(values, valid, prob_bins, secondary_max=None):
+    """Cells whose leading category does not qualify as dominant.
+
+    Two rules, both expressed in percent. The leading probability must reach
+    the first bin edge ``prob_bins[0]`` — with the GHACOF/ACMAD 33.3 edge that
+    is always true (the largest of three probabilities is at least a third),
+    with ICPAC's 40 or NMME's 38 it is the "no dominant category" threshold.
+    With ``secondary_max`` set, the OTHER OUTER tercile(s) must also be under
+    that value. NOAA CPC's NMME rule names the opposite class, not every other
+    category: "A and B contours show when one class has >38% of ensemble
+    members, and the opposite class is below 33%. In the case that A is >38%
+    and N is >33%, A will be shown." So a near-normal runner-up never blanks an
+    outer tercile; when normal leads, both outer terciles must clear the bar.
+    That also reproduces NOAA's white cases exactly: every tercile under the
+    first bin edge, or both outer terciles above it.
+
+    ``values`` is (tercile, ...) in (below, normal, above) order. Returns a
+    bool array; cells that are not a valid triple are reported False here
+    (they are excluded elsewhere).
+    """
+    finite = np.where(np.isfinite(values), values, -np.inf)
+    pct = finite * 100.0
+    leading = np.max(pct, axis=0)
+    with np.errstate(invalid="ignore"):
+        weak = valid & (leading < prob_bins[0])
+        if secondary_max is not None:
+            lead_i = np.argmax(pct, axis=0)
+            below, above = pct[0], pct[2]
+            # below leads -> above constrains; above leads -> below constrains;
+            # normal leads -> both must be under the bar.
+            rival = np.where(lead_i == 0, above,
+                             np.where(lead_i == 2, below, np.maximum(below, above)))
+            weak = weak | (valid & (rival >= secondary_max))
+    return weak
+
+
+def _no_dominant_label(style):
+    """Legend text for the white "no dominant category" cells, or None when
+    the style's rules never leave a valid cell unfilled."""
+    if style is None:
+        return None
+    threshold = float(style.prob_bins[0]) > 100.0 / 3.0 + 1e-6
+    secondary = getattr(style, "secondary_max", None) is not None
+    if not (threshold or secondary):
+        return None
+    parts = []
+    if threshold:
+        parts.append(f"leading < {float(style.prob_bins[0]):g}%")
+    if secondary:
+        parts.append(f"opposing tercile ≥ {float(style.secondary_max):g}%")
+    return "No dominant category (" + " or ".join(parts) + ")"
+
+
+def _tercile_codes(probs, prob_bins, secondary_max=None):
     """Integer class code per cell for a discrete tercile palette.
 
     ``probs`` is (tercile=3, lat, lon), tercile order (below, normal, above),
     fractional (0-1). Returns (code, valid). n = len(prob_bins)-1 bins:
-    above -> 0..n-1, normal -> n..2n-1, below -> 2n..3n-1; -1 = no valid triple.
+    above -> 0..n-1, normal -> n..2n-1, below -> 2n..3n-1; -1 = no valid triple
+    or no dominant category (see ``_no_dominant``).
     """
     valid = np.isfinite(probs).all(axis=0)
+    valid = valid & ~_no_dominant(probs, valid, prob_bins, secondary_max)
     dom = np.argmax(np.where(np.isfinite(probs), probs, -1.0), axis=0)  # 0=below 1=normal 2=above
     prob_pct = np.where(valid, np.max(probs, axis=0) * 100.0, np.nan)
     n = len(prob_bins) - 1
@@ -104,9 +161,23 @@ def _draw_cartopy_basemap(ax):
     # the UN/GHACOF depiction. Everything else is identical to BORDERS.
     ax.add_geometries(_neutral_border_geoms("50m"), ccrs.PlateCarree(),
                       facecolor="none", edgecolor="#555555", linewidth=0.6)
-    gl = ax.gridlines(draw_labels=True, linewidth=0.3, color="#777777", alpha=0.5)
-    gl.top_labels = False
-    gl.right_labels = False
+    # Ask for the bottom/left labels up front rather than enabling all four
+    # and switching top/right off afterwards: with cartopy 0.25 on matplotlib
+    # >= 3.10, toggling a label side off after creation leaves the axes with a
+    # NaN tight bounding box, which crops every bbox_inches="tight" save (and
+    # the notebook inline render) to the colorbar/legend. Older cartopy takes
+    # only a bool, in which case the toggle is still the way.
+    try:
+        gl = ax.gridlines(draw_labels=["bottom", "left"], linewidth=0.3,
+                          color="#777777", alpha=0.5)
+    except (TypeError, ValueError):
+        gl = None
+    if gl is None or gl.top_labels or gl.right_labels:
+        if gl is not None:
+            gl.remove()
+        gl = ax.gridlines(draw_labels=True, linewidth=0.3, color="#777777", alpha=0.5)
+        gl.top_labels = False
+        gl.right_labels = False
 
 
 def _to_0_360(gdf):
@@ -189,12 +260,20 @@ def _tercile_style_legend(ax, style, below_label, above_label):
     ]
     if style.lakes:
         handles.append(Patch(facecolor=style.lake_color, label="Lake"))
+    no_dominant = _no_dominant_label(style)
+    if no_dominant:
+        handles.append(Patch(facecolor=style.nodata_color, edgecolor="0.6",
+                             label=no_dominant))
     ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.10),
               ncol=4, frameon=True, framealpha=0.9, fontsize=7,
               title="Probability of category", title_fontsize=8)
 
 
 _COUNTRY_GEOM_CACHE = {}
+
+# (sorted clip names, lat bytes, lon bytes) -> bool "outside" array. See the
+# clip branch of _region_masks; entries are treated as immutable.
+_OUTSIDE_MASK_CACHE = {}
 
 # Territories that Natural Earth ships as separate admin_0 records but that are
 # rendered as part of another country on UN/WMO-style operational maps (the
@@ -286,6 +365,84 @@ def _neutral_border_geoms(resolution="50m"):
     return _INTERNAL_BORDER_CACHE[key]
 
 
+def _align_bool_mask(mask, lat, lon, *, name="mask"):
+    """Align a boolean mask onto a ``(lat, lon)`` grid; returns a bool ndarray.
+
+    ``mask`` may be a coordinate-bearing DataArray (``lat``/``lon`` coords):
+    aligned by nearest-neighbor interpolation on coordinate VALUE, so it lands
+    on the correct geographic cells regardless of the mask's resolution,
+    registration offset, or latitude ordering; cells outside its coverage (NaN
+    after interpolation) come back False. A bare ndarray (no coords) must match
+    the grid shape exactly — there is no coordinate information to align it by.
+    """
+    lat = np.asarray(lat); lon = np.asarray(lon)
+    shape = (lat.shape[0], lon.shape[0])
+    if hasattr(mask, "interp"):
+        from .._spatial import spatial_dims
+        mlat, mlon = spatial_dims(mask, context=name)
+        if (mlat, mlon) != ("lat", "lon"):     # accept the package's dim aliases
+            mask = mask.rename({mlat: "lat", mlon: "lon"})
+        dm = mask.astype(float).interp(
+            lat=lat, lon=lon, method="nearest").transpose("lat", "lon")
+        return np.asarray(dm.values) > 0.5   # NaN (outside coverage) -> False
+    arr = np.asarray(mask, dtype=bool)
+    if arr.shape != shape:
+        raise ValueError(
+            f"{name} ndarray shape {arr.shape} does not match the field "
+            f"shape {shape}; pass a coordinate-bearing xarray DataArray "
+            f"(lat/lon) to auto-align, or match the grid."
+        )
+    return arr
+
+
+def _smooth_factor(smooth):
+    """Normalize the ``smooth`` argument to an int refinement factor (0 = off)."""
+    if smooth is True:
+        return 4
+    if not smooth:
+        return 0
+    factor = int(smooth)
+    if factor < 2:
+        raise ValueError(f"smooth must be True or an int >= 2, got {smooth!r}")
+    return factor
+
+
+def _refine_field(values, lat, lon, factor):
+    """Cubic-refine a ``(lat, lon)`` field for smooth contouring.
+
+    Returns ``(fine_values, fine_lat, fine_lon)``, or ``None`` when nothing is
+    finite (or a dimension is a single row/column, where contouring is
+    meaningless). NaN cells are nearest-filled first (the cubic spline rejects
+    non-finite input) and re-masked afterwards via a linearly-interpolated
+    coverage mask thresholded at 0.5, so the smoothing changes only the
+    boundary shapes — it never invents data outside the original footprint.
+    Grids too small for the cubic spline (< 4 points on an axis) fall back to
+    linear refinement rather than erroring.
+    """
+    import importlib
+    ndimage = importlib.import_module("scipy.ndimage")
+
+    values = np.asarray(values, dtype=float)
+    lat = np.asarray(lat); lon = np.asarray(lon)
+    if lat.size < 2 or lon.size < 2:
+        return None
+    finite = np.isfinite(values)
+    if not finite.any():
+        return None
+    filled = np.where(finite, values,
+                      values[tuple(ndimage.distance_transform_edt(
+                          ~finite, return_distances=False, return_indices=True))])
+    da = xr.DataArray(filled, dims=("lat", "lon"), coords={"lat": lat, "lon": lon})
+    fine_lat = np.linspace(float(lat.min()), float(lat.max()), lat.size * factor)
+    fine_lon = np.linspace(float(lon.min()), float(lon.max()), lon.size * factor)
+    method = "cubic" if (lat.size >= 4 and lon.size >= 4) else "linear"
+    fine = da.interp(lat=fine_lat, lon=fine_lon, method=method)
+    keep = xr.DataArray(finite.astype(float), dims=("lat", "lon"),
+                        coords={"lat": lat, "lon": lon}).interp(
+        lat=fine_lat, lon=fine_lon, method="linear") > 0.5
+    return fine.where(keep).values, fine_lat, fine_lon
+
+
 def _region_masks(lat, lon, style):
     """Boolean (nlat, nlon) region masks derived from a ``TercileStyle``.
 
@@ -312,20 +469,19 @@ def _region_masks(lat, lon, style):
     shape = (lat.shape[0], lon.shape[0])
     dry = None
     if style is not None and style.dry_mask is not None:
-        if hasattr(style.dry_mask, "interp"):
-            dm = style.dry_mask.astype(float).interp(
-                lat=lat, lon=lon, method="nearest").transpose("lat", "lon")
-            dry = np.asarray(dm.values) > 0.5   # NaN (outside coverage) -> not dry
-        else:
-            dry = np.asarray(style.dry_mask, dtype=bool)
-            if dry.shape != shape:
-                raise ValueError(
-                    f"dry_mask ndarray shape {dry.shape} does not match the field "
-                    f"shape {shape}; pass a coordinate-bearing xarray DataArray "
-                    f"(lat/lon) to auto-align, or match the grid."
-                )
+        dry = _align_bool_mask(style.dry_mask, lat, lon, name="dry_mask")
     outside = None
     if style is not None and style.clip_to is not None:
+        # The per-cell containment loop below is the slow part of a styled
+        # render, and multi-panel figures re-run it once per panel on the same
+        # grid. Cache it for the common country-name-list clip (names + grid
+        # are hashable); an arbitrary shapely geometry is not safely keyable,
+        # so that path stays uncached. Do not mutate the returned array.
+        cache_key = None
+        if isinstance(style.clip_to, (list, tuple)):
+            cache_key = (tuple(sorted(style.clip_to)), lat.tobytes(), lon.tobytes())
+            if cache_key in _OUTSIDE_MASK_CACHE:
+                return dry, _OUTSIDE_MASK_CACHE[cache_key]
         Point = importlib.import_module("shapely.geometry").Point
         geom = (style.clip_to if not isinstance(style.clip_to, (list, tuple))
                 else _country_geometry(list(style.clip_to)))
@@ -337,7 +493,42 @@ def _region_masks(lat, lon, style):
                 if geom.contains(Point(float(lo), float(la))):
                     inside[i, j] = True
         outside = ~inside
+        if cache_key is not None:
+            if len(_OUTSIDE_MASK_CACHE) > 16:
+                _OUTSIDE_MASK_CACHE.clear()
+            _OUTSIDE_MASK_CACHE[cache_key] = outside
     return dry, outside
+
+
+def region_masks(like, style):
+    """Public form of the style's spatial masks, as coordinate-bearing DataArrays.
+
+    Returns ``(dry, outside)`` boolean DataArrays on ``like``'s grid — ``dry``
+    from ``style.dry_mask`` (aligned as the plotters align it) and ``outside``
+    the cells beyond ``style.clip_to``. A mask whose style field is unset
+    comes back all-False (nothing masked), so the masking recipe needs no
+    None-guards. Use it to mask the *data* the same way the plots mask the
+    display, e.g. before ``write_terciles``::
+
+        dry, outside = ds.region_masks(objective, style)
+        ds.write_terciles(objective.where(~outside).where(~dry), path)
+
+    ``like`` is any DataArray with lat/lon dims (aliases accepted).
+    """
+    from .._spatial import spatial_dims
+
+    lat_dim, lon_dim = spatial_dims(like, context="region_masks")
+    lat = np.asarray(like[lat_dim].values)
+    lon = np.asarray(like[lon_dim].values)
+    dry, outside = _region_masks(lat, lon, style)
+
+    def _wrap(arr):
+        if arr is None:
+            arr = np.zeros((lat.shape[0], lon.shape[0]), dtype=bool)
+        return xr.DataArray(arr, dims=(lat_dim, lon_dim),
+                            coords={lat_dim: like[lat_dim], lon_dim: like[lon_dim]})
+
+    return _wrap(dry), _wrap(outside)
 
 
 def _apply_style_masks(code, lat, lon, style):
@@ -353,8 +544,64 @@ def _apply_style_masks(code, lat, lon, style):
     return code
 
 
+def _draw_smooth_terciles(ax, values, lat, lon, style, factor, is_geo):
+    """Category-wise cubic-refined ``contourf`` fills for a styled tercile map.
+
+    Each category is filled where it is the dominant (most-probable) outcome,
+    banded by ``style.prob_bins`` in that category's color ramp — the smooth
+    GHACOF/ACMAD outlook look. Dry cells get a crisp grey cell overlay; cells
+    outside the clip stay unfilled (nodata).
+    """
+    import importlib
+    mcolors = importlib.import_module("matplotlib.colors")
+    transform_kw = {}
+    if is_geo:
+        ccrs = importlib.import_module("cartopy.crs")
+        transform_kw = {"transform": ccrs.PlateCarree()}
+
+    dry, outside = _region_masks(lat, lon, style)
+    # NaN-safe dominant category: argmax over an all-NaN cell would pick a
+    # category arbitrarily, so decide only where the full triple is finite and
+    # mark the rest -1, which matches no category and is never filled.
+    valid = np.isfinite(values).all(axis=0)
+    dom = np.full(valid.shape, -1)
+    dom[valid] = np.argmax(values[:, valid], axis=0)
+    # A leading category that does not qualify as dominant (under the first
+    # bin edge, or contested when the style sets secondary_max) is left
+    # unfilled, never clipped up into the weakest band.
+    excluded = ~valid | _no_dominant(values, valid, style.prob_bins,
+                                     getattr(style, "secondary_max", None))
+    if outside is not None:
+        excluded = excluded | outside
+    if dry is not None:
+        excluded = excluded | dry
+
+    for cat, colors in ((0, style.below_colors), (1, style.normal_colors),
+                        (2, style.above_colors)):
+        band = np.where((dom == cat) & ~excluded, values[cat] * 100.0, np.nan)
+        refined = _refine_field(band, lat, lon, factor)
+        if refined is None:
+            continue
+        fine, flat, flon = refined
+        # The cubic refinement can ring past the bin range (below the first
+        # edge next to weak cells, above the last inside strong blobs), and
+        # contourf(extend="neither") would leave those points as white holes
+        # inside the category's own footprint. Clip back into the bins: only
+        # the drawn band assignment changes, never the probabilities.
+        fine = np.clip(fine, style.prob_bins[0], style.prob_bins[-1] - 1e-9)
+        ax.contourf(flon, flat, fine, levels=style.prob_bins,
+                    colors=list(colors), extend="neither", **transform_kw)
+
+    if dry is not None:
+        cells = (dry & ~outside) if outside is not None else dry
+        grey = np.ma.masked_invalid(np.where(cells, 1.0, np.nan))
+        ax.pcolormesh(lon, lat, grey,
+                      cmap=mcolors.ListedColormap([style.dry_color]),
+                      vmin=0, vmax=1, shading="auto", zorder=2, **transform_kw)
+
+
 def plot_tercile_forecast(pr_fcst, *, style=None, ax=None, title=None,
-                          variable_kind="precip", legend=True):
+                          variable_kind="precip", legend=True, smooth=False):
     """Dominant-tercile probability map (IRI/PyCPT convention).
 
     For each grid point, identifies the tercile (below/normal/above) with
@@ -381,6 +628,12 @@ def plot_tercile_forecast(pr_fcst, *, style=None, ax=None, title=None,
     Lakes (`style.lakes`) are drawn only on the cartopy/geo path (when cartopy
     is available); the geopandas fallback does not draw lakes.
 
+    ``smooth`` (requires ``style``): render the category fills as cubic-refined
+    filled contours instead of grid cells, matching the smooth-boundary look of
+    the operational GHACOF/ACMAD graphics. ``True`` refines by a factor of 4;
+    pass an int to choose the factor. The probabilities are unchanged — only
+    the drawn boundaries are smoothed, and never past the data's footprint.
+
     Input shape: (tercile=3, lat, lon), values in [0, 1] summing to 1.
     """
     if variable_kind == "precip":
@@ -396,6 +649,10 @@ def plot_tercile_forecast(pr_fcst, *, style=None, ax=None, title=None,
             f"variable_kind must be 'precip' or 'temp', got {variable_kind!r}"
         )
     blue_cat = 2 if red_cat == 0 else 0
+
+    factor = _smooth_factor(smooth)
+    if factor and style is None:
+        raise ValueError("smooth rendering requires a TercileStyle (style=...)")
 
     import importlib
     require_optional("matplotlib", _HINT)
@@ -431,8 +688,19 @@ def plot_tercile_forecast(pr_fcst, *, style=None, ax=None, title=None,
             ax.set_xlabel("Longitude"); ax.set_ylabel("Latitude")
             if drew:
                 ax.grid(color="#777777", linewidth=0.3, alpha=0.5)
+    elif factor:
+        _draw_smooth_terciles(ax, values, lat, lon, style, factor, is_geo)
+        if is_geo:
+            _draw_cartopy_basemap(ax)
+            if style.lakes:
+                cfeature = importlib.import_module("cartopy.feature")
+                ax.add_feature(cfeature.NaturalEarthFeature("physical", "lakes", "10m"),
+                               facecolor=style.lake_color, edgecolor="none", zorder=3)
+        else:
+            ax.set_xlim(extent[0], extent[1]); ax.set_ylim(extent[2], extent[3])
     else:
-        code, _ = _tercile_codes(values, style.prob_bins)
+        code, _ = _tercile_codes(values, style.prob_bins,
+                                 getattr(style, "secondary_max", None))
         cmap, npal = _discrete_cmap(style)
         code = _apply_style_masks(code, lat, lon, style)
         code_masked = np.ma.masked_less(code, 0)
@@ -475,7 +743,8 @@ def plot_tercile_forecast(pr_fcst, *, style=None, ax=None, title=None,
 
 
 def plot_field(field, *, style=None, ax=None, cmap="RdBu_r", vmin=None, vmax=None,
-               center=None, title=None, grey_dry=True):
+               center=None, levels=None, extend="both", smooth=False,
+               title=None, grey_dry=True):
     """Continuous (lat, lon) field on the same styled basemap as ``plot_terciles``.
 
     Draws ``field`` with ``pcolormesh`` using the identical map extent,
@@ -489,12 +758,30 @@ def plot_field(field, *, style=None, ax=None, cmap="RdBu_r", vmin=None, vmax=Non
     ``center`` instead to anchor a ``TwoSlopeNorm`` at a value (e.g. 0). Set
     ``grey_dry=False`` to leave dry cells transparent rather than greyed.
 
-    Returns the Matplotlib mappable, for ``fig.colorbar``.
+    ``levels`` (a sequence of bin edges) switches to a discrete classified
+    scale -- a ``BoundaryNorm`` over ``cmap``, with ``extend`` controlling the
+    colorbar's out-of-range arrows -- the convention operational anomaly and
+    onset maps use. Mutually exclusive with ``vmin``/``vmax``/``center``.
+    ``smooth`` (requires ``levels``) renders cubic-refined filled contours
+    instead of grid cells; ``True`` refines by a factor of 4, an int picks the
+    factor. Smoothing changes only the drawn boundaries, never the data, and
+    stays inside the field's finite footprint.
+
+    Returns the Matplotlib mappable, for ``fig.colorbar`` — or ``None`` when
+    ``smooth`` finds nothing finite to contour (the panel then says "no data").
     """
     import importlib
     require_optional("matplotlib", _HINT)
     plt = importlib.import_module("matplotlib.pyplot")
     from .._spatial import spatial_dims
+
+    factor = _smooth_factor(smooth)
+    if levels is not None and center is not None:
+        raise ValueError("pass either levels or center, not both")
+    if levels is not None and (vmin is not None or vmax is not None):
+        raise ValueError("levels defines the scale; do not also pass vmin/vmax")
+    if factor and levels is None:
+        raise ValueError("smooth field rendering requires levels=...")
 
     lat_dim, lon_dim = spatial_dims(field, context="plot_field")
     fld = field.transpose(lat_dim, lon_dim)
@@ -531,11 +818,36 @@ def plot_field(field, *, style=None, ax=None, cmap="RdBu_r", vmin=None, vmax=Non
     cmap_obj = cmap.copy() if isinstance(cmap, Colormap) else plt.get_cmap(cmap).copy()
     if style is not None:
         cmap_obj.set_bad(style.nodata_color)   # clipped/outside cells render as nodata
+    if levels is not None and not factor:
+        BoundaryNorm = importlib.import_module("matplotlib.colors").BoundaryNorm
+        norm = BoundaryNorm(list(levels), cmap_obj.N, extend=extend)
     kw = dict(cmap=cmap_obj, shading="auto")
     if norm is not None:
         kw["norm"] = norm
     else:
         kw["vmin"] = vmin; kw["vmax"] = vmax
+
+    def _draw_field(transform_kw):
+        if factor:
+            refined = _refine_field(values, lat, lon, factor)
+            if refined is None:      # nothing to contour -- say so, don't crash
+                ax.text(0.5, 0.5, "no data", transform=ax.transAxes,
+                        ha="center", va="center", fontsize=11, color="#888888")
+                return None
+            if style is not None:
+                # contourf simply skips NaN regions; paint the clipped/invalid
+                # cells in nodata_color first so the smooth path renders them
+                # the same way the pcolormesh path's set_bad does.
+                ListedColormap = importlib.import_module(
+                    "matplotlib.colors").ListedColormap
+                nodata = np.where(~np.isfinite(values), 1.0, np.nan)
+                ax.pcolormesh(lon, lat, np.ma.masked_invalid(nodata),
+                              cmap=ListedColormap([style.nodata_color]),
+                              vmin=0, vmax=1, shading="auto", **transform_kw)
+            fine, flat, flon = refined
+            return ax.contourf(flon, flat, fine, levels=list(levels),
+                               cmap=cmap_obj, extend=extend, **transform_kw)
+        return ax.pcolormesh(lon, lat, masked, **transform_kw, **kw)
 
     def _grey_overlay():
         if not (grey_dry and dry is not None):
@@ -554,7 +866,7 @@ def plot_field(field, *, style=None, ax=None, cmap="RdBu_r", vmin=None, vmax=Non
 
     if is_geo:
         ccrs = importlib.import_module("cartopy.crs")
-        im = ax.pcolormesh(lon, lat, masked, transform=ccrs.PlateCarree(), **kw)
+        im = _draw_field({"transform": ccrs.PlateCarree()})
         _grey_overlay()
         _draw_cartopy_basemap(ax)
         if style is not None and style.lakes:
@@ -562,7 +874,7 @@ def plot_field(field, *, style=None, ax=None, cmap="RdBu_r", vmin=None, vmax=Non
             ax.add_feature(cfeature.NaturalEarthFeature("physical", "lakes", "10m"),
                            facecolor=style.lake_color, edgecolor="none", zorder=3)
     else:
-        im = ax.pcolormesh(lon, lat, masked, **kw)
+        im = _draw_field({})
         _grey_overlay()
         ax.set_xlim(extent[0], extent[1]); ax.set_ylim(extent[2], extent[3])
 
@@ -718,15 +1030,17 @@ def plot_flex_pdf(fcst_mu, fcst_scale, climo_mu, climo_scale, *,
     return fig
 
 
-def render_styled_terciles(ax, probs, style, *, title=None, small=False):
+def render_styled_terciles(ax, probs, style, *, title=None, small=False, smooth=False):
     """Draw a binned dominant-tercile map with ``style`` onto an existing ``ax``.
 
     Thin wrapper over :func:`plot_tercile_forecast` for multi-panel figures: it renders the styled
     (binned dominant-category palette) tercile map onto the supplied ``ax``. ``small=True`` drops
-    the category legend and the axis ticks, for compact grids. ``probs`` is a
+    the category legend and the axis ticks, for compact grids. ``smooth`` is passed through to
+    :func:`plot_tercile_forecast`. ``probs`` is a
     ``(tercile, lat, lon)`` fractional-probability DataArray. Returns ``ax``.
     """
-    plot_tercile_forecast(probs, style=style, ax=ax, title=title, legend=not small)
+    plot_tercile_forecast(probs, style=style, ax=ax, title=title, legend=not small,
+                          smooth=smooth)
     if small:
         ax.set_xticks([])
         ax.set_yticks([])

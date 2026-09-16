@@ -1,0 +1,11 @@
+{
+  "_provenance": "ACMAD continental palette, transcribed from the CPT GrADS plot scripts (prob_map_distribution_fcst.gs rgb 22-27 / 93-99 / 32-37) that draw ACMAD's operational maps; six probability bands including the 33.33-36 step.",
+  "_usage": "africas2s.TercileStyle.from_json(path, dry_mask=..., clip_to=..., extent=...)",
+  "below_colors": ["#ffe878", "#ffc03c", "#ffa000", "#ff6000", "#ff3200", "#e11400"],
+  "normal_colors": ["#e1e1e1", "#cdcdcd", "#b9b9b9", "#919191", "#7d7d7d", "#646464"],
+  "above_colors": ["#c8ffbe", "#b4faaa", "#96f58c", "#78f573", "#50f050", "#37d23c"],
+  "prob_bins": [33.33, 36, 40, 50, 60, 70, 100.01],
+  "dry_color": "#bebebe",
+  "lakes": false,
+  "nodata_color": "#ffffff"
+}

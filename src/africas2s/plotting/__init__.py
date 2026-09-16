@@ -21,9 +21,12 @@ from .forecasts import (
     plot_flex_pdf,
 )
 from .reliability import plot_reliability_diagram
-from .scenarios import plot_accumulation_scenarios, plot_index_scatter
+from .scenarios import plot_accumulation_scenarios, plot_index_scatter, plot_index_evolution
 from .maps import plot_field_map, plot_choropleth
 from .modes import plot_eof_modes, plot_cca_modes
+from .panels import plot_matrix, plot_components_objective, tercile_legend_handles
+from .forecasts import region_masks
+from .style import tercile_diverging_cmap
 from .style import TercileStyle
 
 __all__ = [
@@ -38,10 +41,16 @@ __all__ = [
     "plot_reliability_diagram",
     "plot_accumulation_scenarios",
     "plot_index_scatter",
+    "plot_index_evolution",
     "plot_field_map",
     "plot_choropleth",
     "plot_eof_modes",
     "plot_cca_modes",
+    "plot_matrix",
+    "plot_components_objective",
+    "tercile_legend_handles",
+    "region_masks",
+    "tercile_diverging_cmap",
     "TercileStyle",
     "render_styled_terciles",
 ]

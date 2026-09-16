@@ -1,0 +1,12 @@
+{
+  "_provenance": "ICPAC colour scheme and probability criteria, transcribed from the 'RCC Climate Forecast Colormap Palettes' sheet (rainfall below / near / above normal, dry mask, lake, boundary). Six probability bands from 40% to 100%; a cell whose leading category is under 40% is left white (no dominant category).",
+  "_usage": "africas2s.TercileStyle.named('icpac', dry_mask=..., clip_to=..., extent=...)",
+  "below_colors":  ["#FFB52E", "#FF9800", "#FF7A00", "#FF5500", "#FF3000", "#FF0000"],
+  "normal_colors": ["#E6FFFF", "#BFF9F5", "#8FEFEA", "#5DDFD8", "#2ACCC5", "#00B8B0"],
+  "above_colors":  ["#C7F0AA", "#39C00F", "#39AB06", "#157A40", "#0E5C30", "#093F21"],
+  "prob_bins": [40, 50, 60, 70, 80, 90, 100.01],
+  "dry_color": "#BEBEBE",
+  "lakes": true,
+  "lake_color": "#73B2FF",
+  "nodata_color": "#FFFFFF"
+}

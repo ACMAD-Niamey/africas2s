@@ -237,7 +237,10 @@ def _season_widths(season, rain) -> xr.DataArray:
 
 def _resolve_dates(step, found, rain):
     """Calendar dates for a step field, NaT where the event did not happen."""
-    days = step.fillna(0).astype("int64").astype("timedelta64[D]")
+    # Scale by an ns-precision day rather than going through timedelta64[D]:
+    # the day-precision intermediate is what older xarray warns about, and the
+    # conversion it then performs is this multiplication anyway.
+    days = step.fillna(0).astype("int64") * np.timedelta64(1, "D").astype("timedelta64[ns]")
     return (rain["season_start"] + days).where(found)
 
 
