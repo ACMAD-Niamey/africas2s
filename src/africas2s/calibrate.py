@@ -512,6 +512,9 @@ def _native_obs_hindcast_years(hcst, obs, *, name):
 def _calibrate_ereg(predictor, obs, *, forecast=None, forecast_year=None,
                     combine="mean", clip_negative=False, threshold_source="obs",
                     native_years: bool = False, output_type="tercile",
+                    variance="wilks", min_years=3, min_valid_each=None,
+                    wet_freq=None, require_obs_variance=False,
+                    fitted_threshold_years="all", tercile_floor=None,
                     return_components=False, verbose=False, **_):
     """eReg calibration: per-model OLS(obs ~ ens-mean) → parametric terciles →
     cross-model average. Each model's predictor is ``(hindcast, forecast)`` with
@@ -522,7 +525,17 @@ def _calibrate_ereg(predictor, obs, *, forecast=None, forecast_year=None,
     calibrated on its OWN ``hcst.year ∩ obs.year`` overlap (floor 3 years)
     instead of requiring every model's hindcast to cover every obs year.
     Default False leaves this byte-for-byte unchanged (still raises on any
-    missing obs year)."""
+    missing obs year).
+
+    ICPAC-parity knobs (defaults preserve current behavior; set
+    ``variance="icpac", min_valid_each=15, wet_freq=(1.0, 5.0),
+    require_obs_variance=True, fitted_threshold_years="paired",
+    tercile_floor=3.0, threshold_source="fitted", clip_negative=True`` to
+    reproduce the ICPAC R EnsReg exactly): ``variance``, ``min_years``,
+    ``min_valid_each``, ``wet_freq``, ``require_obs_variance`` and
+    ``fitted_threshold_years`` configure the per-model engine (see
+    ``EnsembleRegressionMethod``); ``tercile_floor`` masks cells whose fitted
+    lower tercile is below the floor (their ``precLimTerc * SznLen``)."""
     from .methods.ensemble_regression import EnsembleRegressionMethod
 
     models = _split_ereg_predictor(predictor, forecast)
@@ -535,7 +548,11 @@ def _calibrate_ereg(predictor, obs, *, forecast=None, forecast_year=None,
             years = _native_obs_hindcast_years(hcst, obs, name=name)
         else:
             years = _common_obs_hindcast_years(hcst, obs, name=name)
-        m = EnsembleRegressionMethod(clip_negative=clip_negative)
+        m = EnsembleRegressionMethod(
+            clip_negative=clip_negative, variance=variance, min_years=min_years,
+            min_valid_each=min_valid_each, wet_freq=wet_freq,
+            require_obs_variance=require_obs_variance,
+            fitted_threshold_years=fitted_threshold_years)
         m.fit(hcst.sel(year=years), obs.sel(year=years))
         fc = _select_forecast_year_slice(
             fcst if fcst is not None else hcst, forecast_year)
@@ -553,7 +570,8 @@ def _calibrate_ereg(predictor, obs, *, forecast=None, forecast_year=None,
             # this is what the consumer (calibrate_ereg_native_years) does.
             obs_climatology = obs.sel(year=years) if native_years else obs
             maps[name] = m.predict_tercile(
-                fc, obs_climatology, threshold_source=threshold_source)
+                fc, obs_climatology, threshold_source=threshold_source,
+                tercile_floor=tercile_floor)
         if verbose:
             print(f"[calibrate:ereg] {name}: calibrated")
     if output_type == "deterministic":

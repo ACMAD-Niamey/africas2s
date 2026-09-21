@@ -39,14 +39,72 @@ class EnsembleRegressionMethod(MethodBase):
         If True, clamp calibrated predictions below zero to zero (sensible for
         precipitation, the ICPAC use case). Default False to stay variable-
         agnostic, matching CCA.
+    variance : {"wilks", "icpac"}
+        Predictive-variance formula behind ``predict_tercile``. ``"wilks"``
+        (default): the leverage-inflated residual variance (Wilks 2006 eq
+        6.22). ``"icpac"``: ICPAC's operational ``sigma.f`` (Min et al., their
+        ``zStatFunctionsEnsBiasRegPrec.R``): the residual variance plus
+        intercept/slope estimation terms and ensemble-sampling noise from the
+        hindcast and forecast member spread — requires member-resolved
+        hindcast/forecast fields for the noise terms (they are zero without a
+        ``member`` dim).
+    min_years : int
+        Minimum paired finite (hindcast, obs) years per cell (default 3, the
+        OLS floor — the pre-knob hardcoded value).
+    min_valid_each : int, optional
+        Require this many finite years in the obs series and in the hindcast
+        series separately (ICPAC's ``nmiss = 15`` guard).
+    wet_freq : (float, float), optional
+        ``(threshold, percent)``: keep a cell only if strictly more than
+        ``percent`` % of its obs years exceed ``threshold`` (ICPAC:
+        ``(1.0, 5.0)`` — obs > 1 mm in > 5 % of years; the denominator is the
+        full year count, missing years included, as in the R).
+    require_obs_variance : bool
+        Skip cells whose finite obs have zero sample standard deviation
+        (ICPAC's ``sd(yo) > 0`` guard). Default False.
+    fitted_threshold_years : {"all", "paired"}
+        Which training years the fitted-hindcast tercile boundaries use.
+        ``"all"`` (default): every year with a finite predictor. ``"paired"``:
+        only years where obs was also finite — ICPAC's ``quantile(xhindc)``,
+        computed on the regression's fitted values.
     """
 
-    def __init__(self, clip_negative=False, **_ignored):
+    def __init__(self, clip_negative=False, variance="wilks", min_years=3,
+                 min_valid_each=None, wet_freq=None, require_obs_variance=False,
+                 fitted_threshold_years="all", **_ignored):
+        if variance not in ("wilks", "icpac"):
+            raise ValueError(f"variance must be 'wilks' or 'icpac'; got {variance!r}.")
+        if fitted_threshold_years not in ("all", "paired"):
+            raise ValueError(
+                "fitted_threshold_years must be 'all' or 'paired'; got "
+                f"{fitted_threshold_years!r}."
+            )
         self.clip_negative = clip_negative
+        self.variance = variance
+        self.min_years = min_years
+        self.min_valid_each = min_valid_each
+        self.wet_freq = wet_freq
+        self.require_obs_variance = require_obs_variance
+        self.fitted_threshold_years = fitted_threshold_years
 
     def fit(self, hindcast, obs, **kwargs):
         gcm_mean = hindcast.mean("member") if "member" in hindcast.dims else hindcast
         hlat, hlon = _spatial_dims(gcm_mean)
+
+        # ICPAC variance: hindcast ensemble-sampling noise, their sigma.e2 —
+        # per (year, cell) the squared standard error of the ensemble mean
+        # (sample sd over members / sqrt(n_members)), summed over the training
+        # years and divided by (n_years - 1). Zero without a member dim.
+        if self.variance == "icpac":
+            if "member" in hindcast.dims:
+                m = hindcast.sizes["member"]
+                spread2 = (hindcast.std("member", ddof=1) ** 2) / m
+                n_tot = hindcast.sizes["year"]
+                self.sigma_e2_ = (
+                    spread2.sum("year", skipna=True) / max(n_tot - 1, 1)
+                ).transpose(hlat, hlon).values
+            else:
+                self.sigma_e2_ = 0.0
         olat, olon = _spatial_dims(obs)
         gcm_mean = gcm_mean.transpose("year", hlat, hlon)
         obs = obs.transpose("year", olat, olon)
@@ -72,16 +130,35 @@ class EnsembleRegressionMethod(MethodBase):
         x_mean = np.full(ncell, np.nan)      # training predictor mean per cell
         sxx = np.full(ncell, np.nan)         # sum of squared predictor deviations
         n_eff = np.full(ncell, np.nan)       # finite paired years per cell
+        sum_px2 = np.full(ncell, np.nan)     # sum(x^2) over paired years (icpac variance)
+        sum_obs2 = np.full(ncell, np.nan)    # sum(obs^2) over paired years (icpac variance)
+        paired = np.zeros((n_years, ncell), dtype=bool)
 
-        # Per-cell OLS via closed form, NaN-aware. Cells with <3 paired finite
-        # years or a constant predictor stay NaN (uncalibratable). We also store
-        # the predictor mean / Sxx / n so predict_tercile can inflate the
-        # residual variance for parameter-estimation uncertainty (Wilks 2006
-        # eq 6.22): sigma^2 = pev * (1 + 1/n + (xf - xbar)^2 / Sxx).
+        # Per-cell OLS via closed form, NaN-aware. Cells with < min_years
+        # paired finite years or a constant predictor stay NaN
+        # (uncalibratable), as are cells failing the opt-in ICPAC guards. We
+        # also store the predictor mean / Sxx / n so predict_tercile can
+        # inflate the residual variance for parameter-estimation uncertainty
+        # (Wilks 2006 eq 6.22): sigma^2 = pev * (1 + 1/n + (xf - xbar)^2 / Sxx),
+        # and sum(x^2) / sum(obs^2) for the ICPAC sigma.f formula.
         for g in range(ncell):
             xg, yg = X[:, g], Y[:, g]
+            if self.min_valid_each is not None and (
+                np.isfinite(yg).sum() < self.min_valid_each
+                or np.isfinite(xg).sum() < self.min_valid_each
+            ):
+                continue
+            if self.wet_freq is not None:
+                wet_val, wet_pct = self.wet_freq
+                with np.errstate(invalid="ignore"):
+                    if 100.0 * np.count_nonzero(yg > wet_val) / yg.size <= wet_pct:
+                        continue
+            if self.require_obs_variance:
+                yfin = yg[np.isfinite(yg)]
+                if yfin.size < 2 or yfin.std(ddof=1) <= 0:
+                    continue
             ok = np.isfinite(xg) & np.isfinite(yg)
-            if ok.sum() < 3:
+            if ok.sum() < self.min_years:
                 continue
             xo, yo = xg[ok], yg[ok]
             xbar, ybar = xo.mean(), yo.mean()
@@ -98,6 +175,9 @@ class EnsembleRegressionMethod(MethodBase):
             x_mean[g] = xbar
             sxx[g] = sxx_g
             n_eff[g] = ok.sum()
+            sum_px2[g] = np.sum(xo ** 2)
+            sum_obs2[g] = np.sum(yo ** 2)
+            paired[:, g] = ok
 
         shape = obs.isel(year=0).shape
         self.slope_ = slope.reshape(shape)
@@ -106,6 +186,9 @@ class EnsembleRegressionMethod(MethodBase):
         self.x_mean_ = x_mean.reshape(shape)
         self.sxx_ = sxx.reshape(shape)
         self.n_eff_ = n_eff.reshape(shape)
+        self.sum_px2_ = sum_px2.reshape(shape)
+        self.sum_obs2_ = sum_obs2.reshape(shape)
+        self._paired_mask_ = paired.reshape((n_years,) + shape)
         self.predictor_shape_ = gcm_mean.isel(year=0).shape
         self.lat_dim_ = olat
         self.lon_dim_ = olon
@@ -133,6 +216,10 @@ class EnsembleRegressionMethod(MethodBase):
         if cached is None:
             x = self._fit_gcm_mean_.values
             pred = self.slope_[None, ...] * x + self.intercept_[None, ...]
+            if self.fitted_threshold_years == "paired":
+                # ICPAC's quantile(xhindc): fitted values exist only at years
+                # where obs AND predictor were both finite.
+                pred = np.where(self._paired_mask_, pred, np.nan)
             cached = xr.DataArray(
                 pred,
                 dims=["year", self.lat_dim_, self.lon_dim_],
@@ -174,7 +261,8 @@ class EnsembleRegressionMethod(MethodBase):
             pred, dims=[self.lat_dim_, self.lon_dim_], coords=self.predictand_coords_,
         )
 
-    def predict_tercile(self, forecast, obs_climatology, threshold_source="obs"):
+    def predict_tercile(self, forecast, obs_climatology, threshold_source="obs",
+                        tercile_floor=None):
         """Single-year tercile probabilities from THIS model's calibrated Gaussian.
 
         The forecast distribution is ``N(calibrated_mean, sqrt(sigma2))`` per
@@ -201,6 +289,18 @@ class EnsembleRegressionMethod(MethodBase):
         (via ``sigma``) and between-model disagreement (via the average over
         models). Returns ``(tercile, lat, lon)``.
         """
+        # ICPAC variance: forecast ensemble-sampling noise, their ef.sq — the
+        # squared standard error of the forecast ensemble mean, from the raw
+        # member field before it is averaged away below.
+        ef2 = 0.0
+        if self.variance == "icpac" and "member" in forecast.dims:
+            mf = forecast.sizes["member"]
+            ef2_da = (forecast.std("member", ddof=1) ** 2) / mf
+            if "year" in ef2_da.dims:
+                ef2_da = ef2_da.isel(year=0, drop=True)
+            eflat, eflon = _spatial_dims(ef2_da)
+            ef2 = ef2_da.transpose(eflat, eflon).values
+
         xf = forecast.mean("member") if "member" in forecast.dims else forecast
         if "year" in xf.dims:
             if xf.sizes["year"] != 1:
@@ -223,10 +323,23 @@ class EnsembleRegressionMethod(MethodBase):
         if self.clip_negative:
             mu = np.where(np.isfinite(mu) & (mu < 0), 0.0, mu)
 
-        # Leverage-inflated prediction-error variance (Wilks 2006 eq 6.22).
         with np.errstate(invalid="ignore", divide="ignore"):
-            leverage = 1.0 / self.n_eff_ + (xf_v - self.x_mean_) ** 2 / self.sxx_
-            sigma2 = self.pev_ * (1.0 + leverage)
+            if self.variance == "icpac":
+                # ICPAC's sigma.f (Min et al., zStatFunctionsEnsBiasRegPrec.R):
+                #   sigma.a  intercept-estimation variance + hindcast ens noise
+                #   sigma.b  slope-estimation variance (raw second moments)
+                #   sigma.f  = eps2 + sigma.a + sigma.b * xf^2 + b^2 * ef2
+                # xf enters as the raw (unclipped) ensemble-mean forecast.
+                n, eps2, b = self.n_eff_, self.pev_, self.slope_
+                sig_a = ((n - 2.0) / n ** 2) * eps2 \
+                    + ((n - 1.0) / n ** 2) * b ** 2 * self.sigma_e2_
+                sig_b = ((n - 2.0) / n) * eps2 / self.sum_px2_ \
+                    + ((n - 1.0) / n) * self.sigma_e2_ * self.sum_obs2_ / self.sum_px2_ ** 2
+                sigma2 = eps2 + sig_a + sig_b * xf_v ** 2 + b ** 2 * ef2
+            else:
+                # Leverage-inflated prediction-error variance (Wilks 2006 eq 6.22).
+                leverage = 1.0 / self.n_eff_ + (xf_v - self.x_mean_) ** 2 / self.sxx_
+                sigma2 = self.pev_ * (1.0 + leverage)
         sigma = np.sqrt(np.maximum(sigma2, 1e-12))
 
         if threshold_source == "obs":
@@ -244,6 +357,15 @@ class EnsembleRegressionMethod(MethodBase):
         p_bn = norm.cdf(t33.values, loc=mu, scale=sigma)
         p_an = 1.0 - norm.cdf(t67.values, loc=mu, scale=sigma)
         p_nn = 1.0 - p_bn - p_an
+
+        if tercile_floor is not None:
+            # ICPAC's dry-cell guard: probabilities only where the fitted lower
+            # tercile reaches the floor (their obsTerc[1] >= precLimTerc*SznLen).
+            with np.errstate(invalid="ignore"):
+                dry = ~(t33.values >= tercile_floor)
+            p_bn = np.where(dry, np.nan, p_bn)
+            p_nn = np.where(dry, np.nan, p_nn)
+            p_an = np.where(dry, np.nan, p_an)
 
         out = xr.concat(
             [xr.DataArray(p_bn, dims=[self.lat_dim_, self.lon_dim_], coords=self.predictand_coords_),
