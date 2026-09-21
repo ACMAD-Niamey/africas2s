@@ -39,11 +39,17 @@ import xarray as xr
 _TERCILE_COORD = [0, 1, 2]  # below, normal, above — matches africas2s.tercile
 
 
-def _labels_from_obs(obs_vals: np.ndarray, tercile_edges: str = "exclusive"):
+def _labels_from_obs(obs_vals: np.ndarray, tercile_edges: str = "exclusive",
+                     threshold_rounding: int | None = None):
     """Per-cell tercile category labels (0/1/2) and the boundaries.
 
     obs_vals: (year, ncell). Returns (labels (year, ncell) int with -1 for NaN,
     t33 (ncell,), t67 (ncell,)).
+
+    threshold_rounding : int, optional
+        Decimals to round the tercile boundaries to before classifying
+        (ICPAC's R rounds them to 0.1 mm, i.e. ``1``). Uses round-half-even,
+        matching R's ``round``.
 
     tercile_edges : {"exclusive", "inclusive"}
         How to classify values exactly tied to a tercile boundary.
@@ -63,6 +69,9 @@ def _labels_from_obs(obs_vals: np.ndarray, tercile_edges: str = "exclusive"):
     with np.errstate(invalid="ignore"):
         t33 = np.nanpercentile(obs_vals, 100.0 / 3.0, axis=0)
         t67 = np.nanpercentile(obs_vals, 200.0 / 3.0, axis=0)
+    if threshold_rounding is not None:
+        t33 = np.round(t33, threshold_rounding)
+        t67 = np.round(t67, threshold_rounding)
     finite = np.isfinite(obs_vals)
     if tercile_edges == "exclusive":
         below = (obs_vals < t33[None, :]) & finite
@@ -125,12 +134,23 @@ def _fit_one_binomial_statsmodels(x, y, x_f, regularization):
     return prob, pval
 
 
-def _binomial_prob(x, y, x_f, *, backend, regularization, min_years):
+def _binomial_prob(x, y, x_f, *, backend, regularization, min_years,
+                   min_valid_each=None):
     """P(y=1 | x_f) for one cell+category. Returns (prob, pvalue).
 
     Mirrors the reference recipe's edge cases: too few finite samples -> NaN;
     a degenerate label (all 0 or all 1) -> the base rate, no fit.
+
+    min_valid_each, if set, additionally requires that many finite values in
+    EACH input series separately, before intersecting — ICPAC's R checks
+    ``len(finite(y)) >= nmiss & len(finite(x)) >= nmiss`` (nmiss=15) on top of
+    its overlap guard.
     """
+    if min_valid_each is not None and (
+        np.isfinite(x).sum() < min_valid_each
+        or np.isfinite(y).sum() < min_valid_each
+    ):
+        return np.nan, np.nan
     ok = np.isfinite(x) & np.isfinite(y)
     if ok.sum() < min_years:
         return np.nan, np.nan
@@ -198,6 +218,11 @@ def logistic_forecast(
     significance_mask: float | None = None,
     min_years: int = 10,
     tercile_edges: str = "exclusive",
+    obs_threshold: float | None = None,
+    obs_rounding: int | None = None,
+    threshold_rounding: int | None = None,
+    min_valid_each: int | None = None,
+    renormalize: str | None = "sum",
 ):
     """Per-cell logistic tercile forecast from a scalar predictor index.
 
@@ -230,16 +255,43 @@ def logistic_forecast(
         legacy behavior; ``"inclusive"`` sends boundary ties to the outer
         class, which helps dry/tied cells at the cost of no longer matching
         the standard definition.
+    obs_threshold : float, optional
+        Mask obs values below this to NaN before anything else — ICPAC's R
+        ``yobs[yobs < rthr] <- NA`` with ``rthr = 1`` mm. Applied before
+        ``obs_rounding``, as in the R.
+    obs_rounding : int, optional
+        Decimals to round the obs to before computing terciles and labels —
+        ICPAC's R ``round(yobs, 1)``. Round-half-even, matching R.
+    threshold_rounding : int, optional
+        Decimals to round the tercile boundaries to — ICPAC rounds to 0.1 mm.
+    min_valid_each : int, optional
+        Require this many finite values in the index series and in the
+        category series separately (ICPAC's ``nmiss = 15``), on top of
+        ``min_years`` on their overlap (ICPAC: overlap ``> 10``, i.e. 11).
+    renormalize : {"sum", "cap_above", None}
+        Post-processing of the three independent-binomial probabilities.
+        ``"sum"`` (default): divide by their sum when all three are finite;
+        a partially-finite triple becomes all-NaN. ``"cap_above"``: ICPAC's
+        rule — leave the probabilities as fitted, keep partially-finite
+        triples, and only when all three are finite and exceed the cap
+        (sum > 1.0001, their 100.01%) reset above to ``1 - below - normal``.
+        ``None``: leave as fitted, keep partial triples. Ignored by the
+        multinomial model (coherent by construction).
 
     Returns
     -------
     xr.DataArray
         dims ``(tercile, lat, lon)``, ``tercile=[0, 1, 2]`` = below/normal/above,
-        probabilities in ``[0, 1]`` summing to 1 per cell.
+        probabilities in ``[0, 1]`` — summing to 1 per cell under
+        ``renormalize="sum"`` (other modes preserve the fitted values).
     """
     if model not in ("independent_binomial", "multinomial"):
         raise ValueError(
             f"model must be 'independent_binomial' or 'multinomial'; got {model!r}."
+        )
+    if renormalize not in ("sum", "cap_above", None):
+        raise ValueError(
+            f"renormalize must be 'sum', 'cap_above' or None; got {renormalize!r}."
         )
     if significance_mask is not None:
         if backend != "statsmodels":
@@ -258,7 +310,11 @@ def logistic_forecast(
     lat_dim, lon_dim = spatial_dims(obs, context="logistic_forecast")
     obs = obs.transpose("year", lat_dim, lon_dim)
     nlat, nlon = obs.sizes[lat_dim], obs.sizes[lon_dim]
-    obs_vals = obs.values.reshape(obs.sizes["year"], -1)
+    obs_vals = obs.values.reshape(obs.sizes["year"], -1).astype(float)
+    if obs_threshold is not None:  # before rounding, as in the R
+        obs_vals = np.where(obs_vals < obs_threshold, np.nan, obs_vals)
+    if obs_rounding is not None:
+        obs_vals = np.round(obs_vals, obs_rounding)
     ncell = obs_vals.shape[1]
 
     if isinstance(index, xr.DataArray) and "year" in index.coords and "year" in obs.coords:
@@ -285,7 +341,8 @@ def logistic_forecast(
         )
     x_f = float(x_f_arr[0])
 
-    labels, _t33, _t67 = _labels_from_obs(obs_vals, tercile_edges=tercile_edges)
+    labels, _t33, _t67 = _labels_from_obs(obs_vals, tercile_edges=tercile_edges,
+                                          threshold_rounding=threshold_rounding)
 
     probs = np.full((3, ncell), np.nan)
     pmask = np.zeros(ncell, dtype=bool)  # True -> mask this cell to NaN
@@ -306,15 +363,22 @@ def logistic_forecast(
             p, pval = _binomial_prob(
                 x, y, x_f, backend=backend,
                 regularization=regularization, min_years=min_years,
+                min_valid_each=min_valid_each,
             )
             cat_probs[cat] = p
             if cat == 0:
                 below_pval = pval
-        s = np.nansum(cat_probs)
-        if np.all(np.isfinite(cat_probs)) and np.isfinite(s) and s > 0:
-            cat_probs = cat_probs / s
-        elif np.any(np.isfinite(cat_probs)):
-            cat_probs[:] = np.nan
+        if renormalize == "sum":
+            s = np.nansum(cat_probs)
+            if np.all(np.isfinite(cat_probs)) and np.isfinite(s) and s > 0:
+                cat_probs = cat_probs / s
+            elif np.any(np.isfinite(cat_probs)):
+                cat_probs[:] = np.nan
+        elif renormalize == "cap_above":
+            # ICPAC: only when all three are finite and overshoot the cap
+            # (their 100.01%), reset above; partial triples are kept as-is.
+            if np.all(np.isfinite(cat_probs)) and cat_probs.sum() > 1.0001:
+                cat_probs[2] = 1.0 - cat_probs[0] - cat_probs[1]
         probs[:, g] = cat_probs
         if significance_mask is not None and not (
             np.isfinite(below_pval) and below_pval <= significance_mask

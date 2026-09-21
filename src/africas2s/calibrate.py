@@ -203,12 +203,17 @@ def _combine_deterministic(maps: dict) -> xr.DataArray:
     return out
 
 
-def _combine_models(maps: dict, combine: str) -> xr.DataArray:
+def _combine_models(maps: dict, combine: str, simplex: bool = True) -> xr.DataArray:
     """Combine per-model ``(tercile, lat, lon)`` maps. Default: cross-model mean.
 
     Each per-model map sums to 1 (or is all-NaN where that model can't
     calibrate); a skipna mean therefore also sums to 1 wherever at least one
     model is defined.
+
+    simplex=True (default) enforces a complete finite triple summing to 1 per
+    cell (partial triples become NaN). The logit ICPAC-parity path passes
+    False: ICPAC's combine keeps per-category nanmeans of partial triples and
+    renormalizes only at the very end (``combine_renormalize``).
     """
     items = [m for m in maps.values() if m is not None]
     if not items:
@@ -219,8 +224,9 @@ def _combine_models(maps: dict, combine: str) -> xr.DataArray:
         out = items[0]
     else:
         out = xr.concat(items, dim="model").mean("model")  # skipna
-    out = out.transpose("tercile", ...)
-    out = _probability_simplex_or_nan(out)
+    if simplex:
+        out = out.transpose("tercile", ...)
+        out = _probability_simplex_or_nan(out)
     out = out.transpose("tercile", ...)
     out.attrs.update(combine=combine, n_models=len(items))
     return out
@@ -631,6 +637,10 @@ def _calibrate_logit(predictor, obs, *, forecast=None, forecast_year=None,
                      combine="mean", model="independent_binomial", backend="sklearn",
                      regularization=None, significance_mask=None, min_years=10,
                      tercile_edges: str = "exclusive",
+                     obs_threshold=None, obs_rounding=None,
+                     threshold_rounding=None, min_valid_each=None,
+                     renormalize: str | None = "sum",
+                     combine_renormalize: bool = False,
                      detrend: bool = False, return_components=False,
                      verbose=False, **_):
     """Logistic calibration: per-model per-cell logistic of tercile occurrence on
@@ -640,7 +650,18 @@ def _calibrate_logit(predictor, obs, *, forecast=None, forecast_year=None,
     ``tercile_edges`` (opt-in, default "exclusive"): how boundary-tied obs
     values are classified into below/normal/above; see
     ``africas2s.logistic._labels_from_obs``. Default reproduces the standard
-    tercile definition / legacy behavior; "inclusive" helps dry/tied cells."""
+    tercile definition / legacy behavior; "inclusive" helps dry/tied cells.
+
+    ICPAC-parity knobs (defaults preserve current behavior; set
+    ``obs_threshold=1.0, obs_rounding=1, threshold_rounding=1,
+    min_years=11, min_valid_each=15, renormalize="cap_above",
+    combine_renormalize=True, backend="statsmodels"`` to reproduce the ICPAC
+    R logit + its combine step exactly): ``obs_threshold``, ``obs_rounding``,
+    ``threshold_rounding``, ``min_valid_each`` and ``renormalize`` are passed
+    to ``logistic_forecast`` (see its docstring); ``combine_renormalize=True``
+    renormalizes the cross-model mean to sum to 1 (their
+    ``combine_components.py`` step — meaningful when per-map ``renormalize``
+    is not ``"sum"``)."""
     from .logistic import logistic_forecast
 
     idx = _as_model_dict(predictor)
@@ -667,10 +688,22 @@ def _calibrate_logit(predictor, obs, *, forecast=None, forecast_year=None,
             index, obs, fval, model=model, backend=backend,
             regularization=regularization, significance_mask=significance_mask,
             min_years=min_years, tercile_edges=tercile_edges,
+            obs_threshold=obs_threshold, obs_rounding=obs_rounding,
+            threshold_rounding=threshold_rounding, min_valid_each=min_valid_each,
+            renormalize=renormalize,
         )
         if verbose:
             print(f"[calibrate:logit] {name}: fit on index")
-    out = _combine_models(maps, combine)
+    # The simplex re-projection is itself a residual source vs ICPAC (it drops
+    # partial triples and always renormalizes), so it applies only under the
+    # default per-map renormalize="sum".
+    out = _combine_models(maps, combine, simplex=(renormalize == "sum"))
+    if combine_renormalize:
+        # ICPAC's combine step: per-category cross-model nanmean (done above),
+        # then renormalize the triple to sum to 1; a cell with any NaN
+        # category stays NaN (skipna=False), matching their NaN arithmetic.
+        total = out.sum("tercile", skipna=False)
+        out = out / xr.where(total > 0, total, 1.0)
     out.attrs.update(method="logit", model=model, backend=backend)
     if return_components:
         return CalibrateResult(combined=out, per_model=maps)
