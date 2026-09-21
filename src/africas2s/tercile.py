@@ -61,6 +61,18 @@ def cpt_tercile_forecast(forecast, t33, t67, s2, dofr, leverage=0.0):
     pesd = np.sqrt(np.maximum(s2.values * (1.0 + leverage), 1e-24))
     p_bn, p_nn, p_an = _cpt_tercile_probs(
         forecast.values, t33.values, t67.values, dofr, pesd)
+    # CPT calcRegrProbs: where the prediction-error sd is (near-)zero, assign
+    # 100% to the deterministic forecast's own category (below if <= t33,
+    # above if > t67, else normal) instead of evaluating a degenerate CDF.
+    raw_pesd = np.sqrt(np.maximum(s2.values * (1.0 + leverage), 0.0))
+    snap = np.isfinite(raw_pesd) & ~(raw_pesd > np.finfo(float).eps) \
+        & np.isfinite(forecast.values) & np.isfinite(t33.values) & np.isfinite(t67.values)
+    if snap.any():
+        fv = forecast.values
+        with np.errstate(invalid="ignore"):
+            p_bn = np.where(snap, np.where(fv <= t33.values, 1.0, 0.0), p_bn)
+            p_an = np.where(snap, np.where(fv > t67.values, 1.0, 0.0), p_an)
+            p_nn = np.where(snap, 1.0 - p_bn - p_an, p_nn)
     out = xr.concat(
         [xr.DataArray(p_bn, dims=spatial, coords=forecast.coords),
          xr.DataArray(p_nn, dims=spatial, coords=forecast.coords),

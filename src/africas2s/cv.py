@@ -48,6 +48,9 @@ def loyo(years, window=1):
     """Leave-years-out CV. Yields (train_years, test_year) for each year.
 
     window: number of years to leave out (1=strict LOO, 3=target±1, etc.)
+    The window is centred and TRUNCATED at the record ends (edge years hold
+    out fewer than `window` years). CPT.x instead wraps the window around the
+    ends — see :func:`loyo_cyclic`.
     """
     if window < 1:
         raise ValueError(f"window must be >= 1; got {window}")
@@ -55,6 +58,25 @@ def loyo(years, window=1):
     hcw = (window - 1) // 2
     for i, test_year in enumerate(years):
         train_years = [y for j, y in enumerate(years) if abs(j - i) > hcw]
+        yield train_years, test_year
+
+
+def loyo_cyclic(years, window=1):
+    """Leave-years-out CV with CPT.x's cyclic (wraparound) window.
+
+    Exactly `window` years centred on the target are held out for EVERY fold;
+    at the record ends the window wraps around to the other end of the record
+    (verified against CPT 17/18 cross-validated predictions: an edge year's
+    fold holds out the opposite end's years, not a truncated window).
+    """
+    if window < 1:
+        raise ValueError(f"window must be >= 1; got {window}")
+    years = _validate_consecutive_years(years)
+    n = len(years)
+    hcw = (window - 1) // 2
+    for i, test_year in enumerate(years):
+        hold = {(i + d) % n for d in range(-hcw, hcw + 1)}
+        train_years = [y for j, y in enumerate(years) if j not in hold]
         yield train_years, test_year
 
 
@@ -133,6 +155,7 @@ def expanding(years, min_train=10):
 
 _REGISTRY = {
     "loyo": loyo,
+    "loyo_cyclic": loyo_cyclic,
     "lko": lko,
     "blocked": blocked,
     "expanding": expanding,

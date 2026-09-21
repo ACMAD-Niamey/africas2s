@@ -69,12 +69,21 @@ def seasonal_mme(
     primary_metric: str = "rpss",
     verbose: bool = True,
     native_years: bool = False,
+    climatology_period: tuple | None = None,
 ) -> SeasonalMMEResult:
     """Run the full PyCPT-style multi-track seasonal pipeline end-to-end.
 
     See docs/superpowers/specs/2026-05-15-seasonal-mme-orchestrator-design.md
     for parameter semantics, the four-case `forecast_year` resolution rules,
     and the error-handling table.
+
+    `climatology_period` (opt-in, default None): `(first_year, last_year)`
+    restricting the obs years the `cpt_per_model` tercile BOUNDARIES are
+    computed from (intersected with the available years; ignored if fewer
+    than 3 years remain). CPT.x defaults its climatological period to the
+    WMO 1991-2020 normal (`cpt.ini`), so its category thresholds come from
+    that window rather than the full training period — pass `(1991, 2020)`
+    for CPT parity. None keeps the previous behavior (full obs).
 
     `native_years` (opt-in, default False): when True, each model is
     calibrated on its OWN `hcst.year ∩ obs.year` overlap instead of the
@@ -291,8 +300,16 @@ def seasonal_mme(
         # OWN obs slice (per_model_obs), matching the "loop one model at a
         # time" reference semantics — each standalone seasonal_mme() call's
         # `obs_sliced` in that loop IS that one model's native-year slice.
+        def _clim_years(o):
+            # CPT-parity boundary window (see climatology_period docstring).
+            if climatology_period is None:
+                return o
+            lo, hi = climatology_period
+            keep = [y for y in o.year.values if lo <= int(y) <= hi]
+            return o.sel(year=keep) if len(keep) >= 3 else o
+
         if not native_years:
-            t33, t67 = _cpt_spatial_boundaries(obs_sliced)
+            t33, t67 = _cpt_spatial_boundaries(_clim_years(obs_sliced))
         per_model_maps = []
         for key, cv_pred in per_model_cv_hindcasts.items():
             track_name, model_name = key
@@ -301,7 +318,7 @@ def seasonal_mme(
             n_modes = int(getattr(m, "x_eof_modes_", getattr(m, "n_modes", 3)))
             if native_years:
                 model_obs = per_model_obs[key]
-                t33, t67 = _cpt_spatial_boundaries(model_obs)
+                t33, t67 = _cpt_spatial_boundaries(_clim_years(model_obs))
                 dof = len(model_obs.year) - n_modes - 1
             else:
                 model_obs = obs_sliced
@@ -479,6 +496,9 @@ _METHOD_PARAMS = (
     # crossvalidation_window and mode_selection are handled by the orchestrator,
     # not the method.
     "transform_predictand", "tailoring", "drymask_threshold",
+    # CPT.x-parity knobs (see CCAMethod): integrated-cosine latitude weights
+    # and CPT's EOF sign canonicalization (needed for its leverage).
+    "lat_weights", "sign_convention",
 )
 
 
@@ -538,10 +558,11 @@ def _per_model_cv(hcst, fcst, obs_sliced, *, method, cv_scheme, cpt_args,
             "cca_modes": cc,
         })
     elif method == "cca" and mode_sel in ("auto", "cpt"):
-        if cv_scheme != "loyo":
+        if cv_scheme not in ("loyo", "loyo_cyclic"):
             raise ValueError(
                 "seasonal_mme: CCA mode_selection='auto' currently requires "
-                "cv='loyo', matching CPT's cross-validated mode-selection path."
+                "cv='loyo' or 'loyo_cyclic', matching CPT's cross-validated "
+                "mode-selection path."
             )
         from ..methods.cca import select_modes
         mode_window = cv_window if cv_window is not None else 1
