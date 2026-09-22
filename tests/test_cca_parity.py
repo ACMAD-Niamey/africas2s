@@ -83,6 +83,30 @@ def test_leverage_is_sign_dependent_by_construction():
     assert not np.isclose(lev1, lev2)
 
 
+# ── CPT y-reconstruction ─────────────────────────────────────────────────────
+
+def test_cpt_y_reconstruction_scales_anomaly_by_squared_weight():
+    """CPT's predictCCA keeps the Y loadings latitude-reweighted and never
+    divides the weight out: its anomaly = unweighted reconstruction * wt^2."""
+    hind, obs, fcst = _data(seed=7)
+    kw = dict(x_eof_modes=3, y_eof_modes=3, cca_modes=2, standardize=True,
+              lat_weights="cpt")
+    m_u = CCAMethod(**kw); m_u.fit(hind, obs)
+    m_c = CCAMethod(**kw, y_reconstruction="cpt"); m_c.fit(hind, obs)
+    p_u = m_u.predict(fcst).mean("member")
+    p_c = m_c.predict(fcst).mean("member")
+    w2 = cpt_latitude_weights(obs.lat.values) ** 2
+    # anomaly about the training mean scales by wt(lat)^2, row by row
+    mean_map = obs.mean("year")
+    a_u = p_u - mean_map
+    a_c = p_c - mean_map
+    for i, w in enumerate(w2):
+        ru = a_u.isel(lat=i).values
+        rc = a_c.isel(lat=i).values
+        keep = np.isfinite(ru) & (np.abs(ru) > 1e-8)
+        np.testing.assert_allclose(rc[keep] / ru[keep], w, rtol=1e-6)
+
+
 # ── cyclic CV ────────────────────────────────────────────────────────────────
 
 def test_loyo_cyclic_wraps_and_holds_out_full_window():

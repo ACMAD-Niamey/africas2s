@@ -496,9 +496,10 @@ _METHOD_PARAMS = (
     # crossvalidation_window and mode_selection are handled by the orchestrator,
     # not the method.
     "transform_predictand", "tailoring", "drymask_threshold",
-    # CPT.x-parity knobs (see CCAMethod): integrated-cosine latitude weights
-    # and CPT's EOF sign canonicalization (needed for its leverage).
-    "lat_weights", "sign_convention",
+    # CPT.x-parity knobs (see CCAMethod): integrated-cosine latitude weights,
+    # CPT's EOF sign canonicalization (needed for its leverage), and CPT's
+    # reweighted-loadings Y reconstruction.
+    "lat_weights", "sign_convention", "y_reconstruction",
 )
 
 

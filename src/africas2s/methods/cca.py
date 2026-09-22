@@ -106,13 +106,18 @@ class CCAMethod(MethodBase):
                  cca_modes=None, standardize=False,
                  transform_predictand=None, tailoring=None,
                  drymask_threshold=None, synchronous_predictors=True,
-                 lat_weights="sqrt_cos", sign_convention=None):
+                 lat_weights="sqrt_cos", sign_convention=None,
+                 y_reconstruction="unweighted"):
         if lat_weights not in ("sqrt_cos", "cpt"):
             raise ValueError(
                 f"lat_weights must be 'sqrt_cos' or 'cpt'; got {lat_weights!r}.")
         if sign_convention not in (None, "cpt"):
             raise ValueError(
                 f"sign_convention must be None or 'cpt'; got {sign_convention!r}.")
+        if y_reconstruction not in ("unweighted", "cpt"):
+            raise ValueError(
+                "y_reconstruction must be 'unweighted' or 'cpt'; got "
+                f"{y_reconstruction!r}.")
         self.n_modes = n_modes
         self.x_eof_modes = x_eof_modes
         self.y_eof_modes = y_eof_modes
@@ -128,8 +133,18 @@ class CCAMethod(MethodBase):
         #   values are sign-invariant, but CPT's forecast leverage
         #   xvp = 1/n + (sum of canonical scores)^2 is NOT, so reproducing
         #   CPT's predictive variance requires reproducing its signs.
+        # y_reconstruction="cpt": CPT's predictCCA reconstructs the predictand
+        #   with the latitude-REWEIGHTED stored Y loadings and never divides
+        #   the weight back out (cca.F95: fcast = eofy@rwk, eofy re-weighted by
+        #   calcPCs) — its physical-space anomalies are the unweighted
+        #   reconstruction times wt(lat)^2 (~cos lat, ~6% damped at 20N). The
+        #   X side hides the same mechanism (unweighted anomaly projected onto
+        #   reweighted loadings == weighted anomaly onto raw loadings), so only
+        #   Y needs the knob. Diagnosed from a latitude-correlated residual;
+        #   with it, forecasts match CPT.x to output-file precision.
         self.lat_weights = lat_weights
         self.sign_convention = sign_convention
+        self.y_reconstruction = y_reconstruction
         # --- CPT_ARGS parity (§7) ---
         # transform_predictand: None | "Empirical" (rank -> normal-score round
         #   trip on the predictand, inverted after predict). "Gamma" is deferred
@@ -356,7 +371,11 @@ class CCAMethod(MethodBase):
             rwk_y = self.r_ @ prjc * self.svy_
             fcast = self.eofy_ @ rwk_y
 
-            y_pred_valid = fcast / self.y_wt_
+            if self.y_reconstruction == "cpt":
+                # CPT: reweighted loadings, no un-weighting (see __init__ note)
+                y_pred_valid = fcast * self.y_wt_
+            else:
+                y_pred_valid = fcast / self.y_wt_
             if self.y_std_ is not None:
                 y_pred_valid = y_pred_valid * self.y_std_
             # tailoring="Anomaly": leave the forecast as an anomaly (don't add
