@@ -35,6 +35,35 @@ def _svd_pca(X, n_components):
 
 _SV_RTOL = 1e-10
 
+
+def cpt_latitude_weights(lats):
+    """CPT's integrated-cosine latitude weights (space.F95 weightByLatitude,
+    >= 3 latitude case): per band, sqrt(|(sin(r1) - sin(r2)) / (r1 - r2)|)
+    where r1/r2 are the band edges midway to the neighbouring latitudes
+    (extrapolated at the domain edges). Row order does not matter."""
+    rl = np.asarray(lats, dtype=float)
+    n = rl.size
+    if n == 1:
+        return np.ones(1)
+    if n == 2:
+        return np.sqrt(np.cos(np.deg2rad(rl)))
+    w = np.empty(n)
+    for i in range(n):
+        if i == 0:
+            r1 = (3 * rl[0] - rl[1]) * np.pi / 360.0
+            r2 = (rl[0] + rl[1]) * np.pi / 360.0
+        elif i < n - 1:
+            r1 = (rl[i] + rl[i - 1]) * np.pi / 360.0
+            r2 = (rl[i] + rl[i + 1]) * np.pi / 360.0
+        else:
+            r1 = (rl[-1] + rl[-2]) * np.pi / 360.0
+            r2 = (3 * rl[-1] - rl[-2]) * np.pi / 360.0
+        if abs(r1 - r2) > 1e-12:
+            w[i] = np.sqrt(abs((np.sin(r1) - np.sin(r2)) / (r1 - r2)))
+        else:
+            w[i] = 0.0
+    return w
+
 # Upper clamp for CCAMethod.leverage. Training-point leverage is bounded by 1,
 # but a genuinely extrapolating NEW forecast can exceed it (measured up to ~5 on
 # clean operational data, e.g. a strong-ENSO forecast vs a 30-year training
@@ -76,12 +105,46 @@ class CCAMethod(MethodBase):
     def __init__(self, n_modes=3, x_eof_modes=None, y_eof_modes=None,
                  cca_modes=None, standardize=False,
                  transform_predictand=None, tailoring=None,
-                 drymask_threshold=None, synchronous_predictors=True):
+                 drymask_threshold=None, synchronous_predictors=True,
+                 lat_weights="sqrt_cos", sign_convention=None,
+                 y_reconstruction="unweighted"):
+        if lat_weights not in ("sqrt_cos", "cpt"):
+            raise ValueError(
+                f"lat_weights must be 'sqrt_cos' or 'cpt'; got {lat_weights!r}.")
+        if sign_convention not in (None, "cpt"):
+            raise ValueError(
+                f"sign_convention must be None or 'cpt'; got {sign_convention!r}.")
+        if y_reconstruction not in ("unweighted", "cpt"):
+            raise ValueError(
+                "y_reconstruction must be 'unweighted' or 'cpt'; got "
+                f"{y_reconstruction!r}.")
         self.n_modes = n_modes
         self.x_eof_modes = x_eof_modes
         self.y_eof_modes = y_eof_modes
         self.cca_modes = cca_modes
         self.standardize = standardize
+        # --- CPT parity knobs ---
+        # lat_weights="cpt": CPT's integrated-cosine band weights instead of
+        #   sqrt(cos(lat)) (see cpt_latitude_weights). Near-identical on fine
+        #   grids; needed for exact CPT.x reproduction.
+        # sign_convention="cpt": CPT's calcPCs(lpos=.true.) canonicalization —
+        #   each EOF's sign is flipped so that the largest-magnitude entry of
+        #   the latitude-rescaled loadings is positive. Deterministic-forecast
+        #   values are sign-invariant, but CPT's forecast leverage
+        #   xvp = 1/n + (sum of canonical scores)^2 is NOT, so reproducing
+        #   CPT's predictive variance requires reproducing its signs.
+        # y_reconstruction="cpt": CPT's predictCCA reconstructs the predictand
+        #   with the latitude-REWEIGHTED stored Y loadings and never divides
+        #   the weight back out (cca.F95: fcast = eofy@rwk, eofy re-weighted by
+        #   calcPCs) — its physical-space anomalies are the unweighted
+        #   reconstruction times wt(lat)^2 (~cos lat, ~6% damped at 20N). The
+        #   X side hides the same mechanism (unweighted anomaly projected onto
+        #   reweighted loadings == weighted anomaly onto raw loadings), so only
+        #   Y needs the knob. Diagnosed from a latitude-correlated residual;
+        #   with it, forecasts match CPT.x to output-file precision.
+        self.lat_weights = lat_weights
+        self.sign_convention = sign_convention
+        self.y_reconstruction = y_reconstruction
         # --- CPT_ARGS parity (§7) ---
         # transform_predictand: None | "Empirical" (rank -> normal-score round
         #   trip on the predictand, inverted after predict). "Gamma" is deferred
@@ -167,10 +230,16 @@ class CCAMethod(MethodBase):
             self.y_std_ = None
 
         # Latitude area weighting (CPT latitude_weight before SVD)
-        x_lats = np.repeat(gcm_mean.lat.values, len(gcm_mean.lon))
-        y_lats = np.repeat(obs.lat.values, len(obs.lon))
-        self.x_wt_ = np.sqrt(np.cos(np.deg2rad(x_lats)))[self.x_valid_]
-        self.y_wt_ = np.sqrt(np.cos(np.deg2rad(y_lats)))[self.y_valid_]
+        if self.lat_weights == "cpt":
+            x_row_wt = cpt_latitude_weights(gcm_mean.lat.values)
+            y_row_wt = cpt_latitude_weights(obs.lat.values)
+        else:
+            x_row_wt = np.sqrt(np.cos(np.deg2rad(gcm_mean.lat.values)))
+            y_row_wt = np.sqrt(np.cos(np.deg2rad(obs.lat.values)))
+        x_lats_w = np.repeat(x_row_wt, len(gcm_mean.lon))
+        y_lats_w = np.repeat(y_row_wt, len(obs.lon))
+        self.x_wt_ = x_lats_w[self.x_valid_]
+        self.y_wt_ = y_lats_w[self.y_valid_]
         X_c = X_c * self.x_wt_
         Y_c = Y_c * self.y_wt_
 
@@ -182,6 +251,18 @@ class CCAMethod(MethodBase):
 
         self.eofx_, self.tsx_, self.svx_ = _svd_pca(X_c, x_eof_modes)
         self.eofy_, self.tsy_, self.svy_ = _svd_pca(Y_c, y_eof_modes)
+
+        # sign_convention="cpt": CPT's calcPCs lpos rule — flip each EOF so the
+        # largest-magnitude entry of the latitude-RE-scaled loadings (CPT
+        # weights the loadings by latitude again for display) is positive.
+        if self.sign_convention == "cpt":
+            for eof, ts, wt in ((self.eofx_, self.tsx_, self.x_wt_),
+                                (self.eofy_, self.tsy_, self.y_wt_)):
+                disp = eof * wt[:, None]
+                for c in range(eof.shape[1]):
+                    if abs(disp[:, c].max()) < abs(disp[:, c].min()):
+                        eof[:, c] = -eof[:, c]
+                        ts[c, :] = -ts[c, :]
         # A rank-0 predictor (no interannual variance at all — e.g. a field that arrived
         # zero-filled from a failed OPeNDAP transfer) makes every projection 0/0. Silently
         # returning NaN forecasts hides a data problem as a modelling result, so fail loudly.
@@ -290,7 +371,11 @@ class CCAMethod(MethodBase):
             rwk_y = self.r_ @ prjc * self.svy_
             fcast = self.eofy_ @ rwk_y
 
-            y_pred_valid = fcast / self.y_wt_
+            if self.y_reconstruction == "cpt":
+                # CPT: reweighted loadings, no un-weighting (see __init__ note)
+                y_pred_valid = fcast * self.y_wt_
+            else:
+                y_pred_valid = fcast / self.y_wt_
             if self.y_std_ is not None:
                 y_pred_valid = y_pred_valid * self.y_std_
             # tailoring="Anomaly": leave the forecast as an anomaly (don't add

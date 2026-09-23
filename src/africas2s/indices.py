@@ -375,6 +375,26 @@ class Index:
             f"weights must be None, 'cos_lat' or a DataArray, got {self.weights!r}."
         )
 
+    @staticmethod
+    def _pixel_standardize(field: xr.DataArray, climatology: xr.DataArray | None):
+        """Z-score each grid cell's series over its time-like dim (ddof=1),
+        ensemble-mean first — the ICPAC/NCL ``dim_standardize_n`` construction.
+        The mean/std come from ``climatology`` when given, else the field."""
+        if "member" in field.dims:
+            field = field.mean("member")
+        reference = field if climatology is None else climatology
+        if climatology is not None and "member" in reference.dims:
+            reference = reference.mean("member")
+        for dim in ("year", "time", "init_time"):
+            if dim in reference.dims:
+                mean = reference.mean(dim, skipna=True)
+                std = reference.std(dim, ddof=1, skipna=True)
+                return (field - mean) / std.where(std > 0)
+        raise ValueError(
+            "pixel_standardize needs a 'year', 'time' or 'init_time' dim on the "
+            f"reference field to standardize over (dims: {tuple(reference.dims)})."
+        )
+
     def _transform_for(self, region: str) -> str:
         if isinstance(self.transform, str):
             return self.transform
@@ -461,6 +481,7 @@ class Index:
         climatology: xr.DataArray | None = None,
         *,
         baseline=None,
+        pixel_standardize: bool = False,
         sst: xr.DataArray | None = None,
     ) -> xr.DataArray:
         """Reduce a gridded field to the index series.
@@ -479,6 +500,16 @@ class Index:
         baseline : tuple or slice, optional
             Restricts the reference to a period, e.g. ``(1991, 2020)``.
             Overrides the index's own ``baseline``.
+        pixel_standardize : bool, default False
+            Standardize the FIELD per pixel (z-score each grid cell's series
+            over its time dim, sample std ddof=1, ensemble-mean first) before
+            box-averaging — the ICPAC/NCL SST-index construction
+            (``dim_standardize_n``), as opposed to the default transform of
+            the box-mean series. Use with ``transform="raw"`` to reproduce
+            ICPAC's indices exactly; the reference is ``climatology`` when
+            given, else the field itself (ICPAC standardizes over the
+            concatenated hindcast+forecast series, so pass that
+            concatenation as one ``field``).
         sst : xr.DataArray, optional
             Deprecated alias for ``field``.
 
@@ -500,6 +531,10 @@ class Index:
             field = sst
         if field is None:
             raise TypeError("Index.reduce() requires a `field`")
+
+        if pixel_standardize:
+            field = self._pixel_standardize(field, climatology)
+            climatology = None  # the reference is consumed by the pixel z-score
 
         boxes = self._box_series(field)
 
