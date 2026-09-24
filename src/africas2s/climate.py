@@ -27,13 +27,28 @@ from .time import infer_cadence, season_step, season_times
 
 __all__ = [
     "accumulate",
+    "doy_anomaly",
+    "doy_climatology",
     "frequency_below",
+    "lead_window_reduce",
     "percent_of_normal",
     "percentile_of",
     "rank_of_record",
     "seasonal_reduce",
     "seasonal_stack",
 ]
+
+# Sub-seasonal forecasts are issued on a lead axis, not a calendar one, so the
+# five horizons a user asks for ("next week", "next 30 days") are windows of
+# lead, not months. `seasonal_reduce` cannot express them: it selects calendar
+# months and collapses to a `year` dim.
+LEAD_WINDOWS_S2S = {
+    "week1": (1, 7),
+    "week2": (8, 14),
+    "week3": (15, 21),
+    "week4": (22, 28),
+    "day1_30": (1, 30),
+}
 
 _HOW = {"sum", "mean", "max", "min"}
 
@@ -440,3 +455,156 @@ def rank_of_record(
     n_valid = climatology.notnull().sum(dim)
     rank = rank.where(n_valid > 0)
     return rank.where(values.notnull())
+
+
+def _lead_days(da, lead_dim, lead_units):
+    """The lead axis expressed in days, whatever unit it is stored in.
+
+    ECMWF S2S arrives with ``lead_time`` in hours (24, 48, ... 1104) carrying a
+    ``units`` attribute. Reading that attribute rather than assuming keeps this
+    honest for a source that files leads in days.
+    """
+    lead = da[lead_dim]
+    units = lead_units or lead.attrs.get("units", "hours")
+    units = str(units).lower()
+    if units.startswith("hour"):
+        return lead / 24.0
+    if units.startswith("day"):
+        return lead * 1.0
+    raise ValueError(
+        f"lead_window_reduce cannot interpret lead units {units!r}; "
+        "pass lead_units='hours' or 'days' explicitly.")
+
+
+def lead_window_reduce(da, windows=None, *, lead_dim="lead_time", how="mean",
+                       lead_units=None, require_complete=True):
+    """Reduce a forecast lead axis to one value per named lead window.
+
+    The sub-seasonal counterpart to :func:`seasonal_reduce`. Where that selects
+    calendar months and collapses to a ``year`` dim, this selects ranges of
+    *lead* and collapses to a ``window`` dim, leaving every other dimension
+    (member, year, lat, lon) untouched.
+
+    Parameters
+    ----------
+    da : xarray.DataArray
+        A forecast with a lead dimension.
+    windows : mapping, optional
+        ``{name: (first_day, last_day)}``, inclusive and 1-based, so
+        ``("week1", (1, 7))`` is the first seven forecast days. Defaults to
+        :data:`LEAD_WINDOWS_S2S`.
+    how : {"mean", "sum", "max", "min"}
+        Reduction within each window. ``"mean"`` for a state variable such as
+        SST; ``"sum"`` for an accumulating one such as rainfall.
+    lead_units : {"hours", "days"}, optional
+        Overrides the lead axis's own ``units`` attribute.
+    require_complete : bool
+        When True (the default), a window missing any of its days raises rather
+        than quietly averaging a partial window -- a 4-day "week" is a biased
+        estimate that looks exactly like a clean one.
+
+    Returns
+    -------
+    xarray.DataArray
+        ``window`` replaces ``lead_dim``; the coordinate holds the window names
+        in the order given.
+    """
+    if how not in _HOW:
+        raise ValueError(f"how must be one of {sorted(_HOW)}, got {how!r}")
+    if lead_dim not in da.dims:
+        raise ValueError(
+            f"lead_window_reduce needs a {lead_dim!r} dimension; got {tuple(da.dims)}.")
+    windows = dict(windows) if windows else dict(LEAD_WINDOWS_S2S)
+    if not windows:
+        raise ValueError("lead_window_reduce requires at least one window.")
+
+    days = _lead_days(da, lead_dim, lead_units)
+    pieces, names = [], []
+    for name, bounds in windows.items():
+        first, last = bounds
+        if first > last:
+            raise ValueError(f"window {name!r}: first day {first} is after last day {last}.")
+        mask = (days >= first) & (days <= last)
+        n = int(mask.sum())
+        if n == 0:
+            raise ValueError(
+                f"window {name!r} ({first}-{last} days) selects no leads; the axis "
+                f"spans {float(days.min()):.0f}-{float(days.max()):.0f} days.")
+        if require_complete and n < (last - first + 1):
+            raise ValueError(
+                f"window {name!r} ({first}-{last} days) has only {n} of "
+                f"{last - first + 1} days on the lead axis. Pass "
+                "require_complete=False to reduce it anyway.")
+        pieces.append(getattr(da.isel({lead_dim: mask}), how)(lead_dim))
+        names.append(name)
+
+    out = xr.concat(pieces, dim="window")
+    out = out.assign_coords(window=names)
+    out.attrs = dict(da.attrs)
+    return out
+
+
+def doy_climatology(da, *, time_dim="time", baseline=None, smooth=None):
+    """Mean annual cycle by day of year.
+
+    The daily counterpart to a seasonal baseline. At seasonal scale a
+    climatology is a mean over years; at daily scale it must vary through the
+    year, or a January anomaly is measured against a July ocean.
+
+    Parameters
+    ----------
+    baseline : tuple, optional
+        ``(first_year, last_year)`` inclusive. Restricts the reference period
+        without restricting what can later be differenced against it.
+    smooth : int, optional
+        Width, in days, of a centred rolling mean applied around the day-of-year
+        axis. A raw daily climatology from ~20 years is noisy; smoothing over a
+        few days removes that without touching the seasonal shape. The window
+        wraps at the year boundary, so 31 December and 1 January stay continuous.
+
+    Returns
+    -------
+    xarray.DataArray
+        Indexed by ``dayofyear`` (1-366), other dimensions preserved.
+    """
+    if time_dim not in da.dims:
+        raise ValueError(
+            f"doy_climatology needs a {time_dim!r} dimension; got {tuple(da.dims)}.")
+    ref = da
+    if baseline is not None:
+        y0, y1 = baseline
+        years = ref[time_dim].dt.year
+        ref = ref.isel({time_dim: ((years >= y0) & (years <= y1)).values})
+        if ref.sizes.get(time_dim, 0) == 0:
+            raise ValueError(f"doy_climatology: no data in baseline {y0}-{y1}.")
+    clim = ref.groupby(f"{time_dim}.dayofyear").mean(time_dim)
+    if smooth:
+        if smooth < 1:
+            raise ValueError(f"smooth must be >= 1 day, got {smooth}")
+        # Wrap the axis so the rolling window is continuous across 31 Dec/1 Jan.
+        pad = smooth // 2 + 1
+        wrapped = xr.concat(
+            [clim.isel(dayofyear=slice(-pad, None)), clim,
+             clim.isel(dayofyear=slice(0, pad))],
+            dim="dayofyear",
+        )
+        rolled = wrapped.rolling(dayofyear=smooth, center=True, min_periods=1).mean()
+        clim = rolled.isel(dayofyear=slice(pad, pad + clim.sizes["dayofyear"]))
+    clim.attrs = dict(da.attrs)
+    return clim
+
+
+def doy_anomaly(da, climatology=None, *, time_dim="time", baseline=None, smooth=None):
+    """Departure from the day-of-year climatology.
+
+    Pass ``climatology`` to difference against a reference built elsewhere --
+    which is how a forecast is made comparable to observations, and how the same
+    field can be expressed against a model climatology and an observed one.
+    Otherwise the climatology is computed from ``da`` itself.
+    """
+    if climatology is None:
+        climatology = doy_climatology(da, time_dim=time_dim, baseline=baseline,
+                                      smooth=smooth)
+    anom = da.groupby(f"{time_dim}.dayofyear") - climatology
+    anom.attrs = dict(da.attrs)
+    return anom.drop_vars("dayofyear", errors="ignore")
