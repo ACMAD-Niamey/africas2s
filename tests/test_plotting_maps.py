@@ -71,6 +71,12 @@ def test_field_map_autoscales_a_non_fraction_field():
     assert hi > 1.0  # not clamped to the fraction range
 
 
+def _meshes(ax):
+    """The pcolormesh layers on ``ax``, ignoring basemap feature artists."""
+    from matplotlib.collections import QuadMesh
+    return [c for c in ax.collections if isinstance(c, QuadMesh)]
+
+
 def test_highlight_paints_only_the_matching_cells():
     """rank_of_record == 1 over a field where exactly two cells are the record
     minimum: the highlight layer must cover two cells, not the whole grid."""
@@ -79,15 +85,17 @@ def test_highlight_paints_only_the_matching_cells():
         dims=("lat", "lon"), coords={"lat": [3, 4], "lon": [33, 34, 35]},
     )
     fig = plot_field_map(ranks, highlight=1)
-    # base mesh + highlight mesh
-    assert len(fig.axes[0].collections) == 2
-    highlight = fig.axes[0].collections[1].get_array()
+    # base mesh + highlight mesh (the cartopy basemap, when present, adds
+    # coastline/border FeatureArtists to ax.collections too -- not meshes)
+    meshes = _meshes(fig.axes[0])
+    assert len(meshes) == 2
+    highlight = meshes[1].get_array()
     assert np.isfinite(np.asarray(highlight, float)).sum() == 2
 
 
 def test_highlight_with_no_matching_cell_draws_no_extra_layer(field):
     fig = plot_field_map(field, highlight=999)
-    assert len(fig.axes[0].collections) == 1
+    assert len(_meshes(fig.axes[0])) == 1
 
 
 def test_field_map_overlays_boundaries(field, regions):
