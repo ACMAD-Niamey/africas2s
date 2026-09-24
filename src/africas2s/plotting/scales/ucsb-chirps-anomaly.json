@@ -1,0 +1,10 @@
+{
+  "_provenance": "UCSB Climate Hazards Center CHIRPS rainfall anomaly (mm) colour scheme, sampled from the CHIRPS-based anomaly map CAPC-AC works from: deficits in red, orange and yellow, then dark brown to pale tan (under -300, -300 to -200, -200 to -100, -100 to -50, -50 to -25, -25 to -10), white within +/-10, surpluses in three greens (10-25, 25-50, 50-100), two blues (100-200, 200-300), lavender (300-500) and purple (over 500).",
+  "_usage": "africas2s.plot_field(anom, style=STYLE, scale=africas2s.FieldScale.named('ucsb-chirps-anomaly'))",
+  "colors": ["#FE2F18", "#FE9627", "#FFE577", "#6C473E", "#AB8178", "#EED7CD",
+             "#FFFFFF",
+             "#C2FFBA", "#6FF372", "#22AA2E", "#8CCCF7", "#2577E8", "#D7D7FD", "#7465E2"],
+  "levels": [-300, -200, -100, -50, -25, -10, 10, 25, 50, 100, 200, 300, 500],
+  "extend": "both",
+  "label": "Rainfall anomaly (mm)"
+}

@@ -248,12 +248,15 @@ def _tercile_style_legend(ax, style, below_label, above_label):
     def _weak(colors):
         return colors[1] if len(colors) > 1 else colors[-1]
 
+    def _heading(label):               # "Above normal (wetter)" -> "Above"; "Late onset" -> "Late"
+        return r"$\bf{" + label.split()[0] + "}$"
+
     handles = [
-        Patch(facecolor="none", edgecolor="none", label=r"$\bf{Above}$"),
+        Patch(facecolor="none", edgecolor="none", label=_heading(above_label)),
         Patch(facecolor=style.above_colors[-1], label="strong"),
         Patch(facecolor=_weak(style.above_colors), label="weak"),
         Patch(facecolor=_weak(style.normal_colors), edgecolor="0.6", label="Near normal"),
-        Patch(facecolor="none", edgecolor="none", label=r"$\bf{Below}$"),
+        Patch(facecolor="none", edgecolor="none", label=_heading(below_label)),
         Patch(facecolor=style.below_colors[-1], label="strong"),
         Patch(facecolor=_weak(style.below_colors), label="weak"),
         Patch(facecolor=style.dry_color, label="Dry season"),
@@ -618,6 +621,12 @@ def plot_tercile_forecast(pr_fcst, *, style=None, ax=None, title=None,
         * normal              -> grey
         * above-normal (warmer) -> red
 
+    - `variable_kind="onset"` (onset-of-rains terciles in onset-day terms,
+      below = early, above = late; pair with the `icpac-onset` style):
+        * early onset  -> blue (green in the styled palette)
+        * normal       -> grey
+        * late onset   -> red
+
     Color intensity scales with `(max_prob - 1/3)`, saturating at +0.37
     (i.e. 70% probability) so highly confident forecasts don't wash out.
 
@@ -644,9 +653,13 @@ def plot_tercile_forecast(pr_fcst, *, style=None, ax=None, title=None,
         red_cat = 2
         below_label = "Below normal (cooler)"
         above_label = "Above normal (warmer)"
+    elif variable_kind == "onset":
+        red_cat = 2                      # late onset reads as the "hot" colour
+        below_label = "Early onset"
+        above_label = "Late onset"
     else:
         raise ValueError(
-            f"variable_kind must be 'precip' or 'temp', got {variable_kind!r}"
+            f"variable_kind must be 'precip', 'temp' or 'onset', got {variable_kind!r}"
         )
     blue_cat = 2 if red_cat == 0 else 0
 
@@ -744,7 +757,7 @@ def plot_tercile_forecast(pr_fcst, *, style=None, ax=None, title=None,
 
 def plot_field(field, *, style=None, ax=None, cmap="RdBu_r", vmin=None, vmax=None,
                center=None, levels=None, extend="both", smooth=False,
-               title=None, grey_dry=True):
+               title=None, grey_dry=True, scale=None):
     """Continuous (lat, lon) field on the same styled basemap as ``plot_terciles``.
 
     Draws ``field`` with ``pcolormesh`` using the identical map extent,
@@ -767,6 +780,11 @@ def plot_field(field, *, style=None, ax=None, cmap="RdBu_r", vmin=None, vmax=Non
     factor. Smoothing changes only the drawn boundaries, never the data, and
     stays inside the field's finite footprint.
 
+    ``scale`` (a :class:`FieldScale`, e.g. ``FieldScale.named("noaa-cpc-anomaly")``)
+    supplies ``levels``, ``extend`` and the colours in one object, and both
+    renderers then paint exactly its colours bin for bin. Exclusive with
+    ``levels``/``vmin``/``vmax``/``center``; ``cmap`` is ignored.
+
     Returns the Matplotlib mappable, for ``fig.colorbar`` — or ``None`` when
     ``smooth`` finds nothing finite to contour (the panel then says "no data").
     """
@@ -776,6 +794,11 @@ def plot_field(field, *, style=None, ax=None, cmap="RdBu_r", vmin=None, vmax=Non
     from .._spatial import spatial_dims
 
     factor = _smooth_factor(smooth)
+    if scale is not None:
+        if levels is not None or vmin is not None or vmax is not None or center is not None:
+            raise ValueError("scale defines the colours and bins; do not also "
+                             "pass levels, vmin, vmax or center")
+        levels, extend, cmap = list(scale.levels), scale.extend, scale.cmap
     if levels is not None and center is not None:
         raise ValueError("pass either levels or center, not both")
     if levels is not None and (vmin is not None or vmax is not None):
@@ -845,6 +868,11 @@ def plot_field(field, *, style=None, ax=None, cmap="RdBu_r", vmin=None, vmax=Non
                               cmap=ListedColormap([style.nodata_color]),
                               vmin=0, vmax=1, shading="auto", **transform_kw)
             fine, flat, flon = refined
+            # A FieldScale lists one colour per band; contourf's default
+            # Normalize would spread a listed colormap by value, not by band,
+            # so give it the band-indexed BoundaryNorm too.
+            if scale is not None:
+                transform_kw = dict(transform_kw, norm=scale.norm)
             return ax.contourf(flon, flat, fine, levels=list(levels),
                                cmap=cmap_obj, extend=extend, **transform_kw)
         return ax.pcolormesh(lon, lat, masked, **transform_kw, **kw)

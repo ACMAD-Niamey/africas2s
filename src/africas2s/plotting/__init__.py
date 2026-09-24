@@ -27,7 +27,7 @@ from .modes import plot_eof_modes, plot_cca_modes
 from .panels import plot_matrix, plot_components_objective, tercile_legend_handles
 from .forecasts import region_masks
 from .style import tercile_diverging_cmap
-from .style import TercileStyle
+from .style import TercileStyle, FieldScale
 
 __all__ = [
     "plot_domains",
@@ -52,5 +52,6 @@ __all__ = [
     "region_masks",
     "tercile_diverging_cmap",
     "TercileStyle",
+    "FieldScale",
     "render_styled_terciles",
 ]

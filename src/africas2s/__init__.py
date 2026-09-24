@@ -32,7 +32,7 @@ from .plotting.scenarios import (
     plot_accumulation_scenarios, plot_index_scatter, plot_index_evolution,
 )
 from .plotting.maps import natural_earth_borders, plot_field_map, plot_choropleth
-from .plotting.style import TercileStyle
+from .plotting.style import TercileStyle, FieldScale
 from .plotting.forecasts import plot_field, plot_tercile_comparison, render_styled_terciles
 from .plotting.panels import plot_matrix, plot_components_objective, tercile_legend_handles
 from .plotting.forecasts import region_masks
@@ -102,6 +102,7 @@ __all__ = [
     "plot_choropleth",
     "natural_earth_borders",
     "TercileStyle",
+    "FieldScale",
     "plot_field",
     "render_styled_terciles",
     "plot_tercile_comparison",

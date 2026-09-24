@@ -1,0 +1,11 @@
+{
+  "_provenance": "ICPAC onset-date scheme, sampled from the GHACOF OND 2026 onset map: one colour per dekad from the start of the search window (R colours greenyellow, lawngreen, palegreen, darkseagreen, forestgreen, darkgreen, darkolivegreen, olivedrab, orange, slateblue; then mediumturquoise for the open-ended last swatch), which on ICPAC's OND map read Sep 1, 11, 21, Oct 1, 11, 21, 31, Nov 10, 20, 30 and 'Dec 10 or later'; the grey at the foot of ICPAC's legend is here the open lower end (before the window start; ICPAC also uses it for dry / no-onset cells, which a TercileStyle dry_mask supplies). Levels are days since the window start, so the same scale anchors to any season: label the colorbar ticks with dates.",
+  "_usage": "africas2s.plot_field(onset_days, style=STYLE, scale=africas2s.FieldScale.named('icpac-onset-date'))",
+  "colors": ["#BEBEBE",
+             "#ADFF2F", "#7CFC00", "#98FB98", "#8FBC8F", "#228B22",
+             "#006400", "#556B2F", "#6B8E23", "#FFA500", "#6A5ACD",
+             "#48D1CC"],
+  "levels": [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+  "extend": "both",
+  "label": "Onset date (days since window start)"
+}

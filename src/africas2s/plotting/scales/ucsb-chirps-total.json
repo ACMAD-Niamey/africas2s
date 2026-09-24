@@ -1,0 +1,12 @@
+{
+  "_provenance": "UCSB Climate Hazards Center CHIRPS rainfall total (mm) colour scheme, sampled from the CHIRPS weekly-totals reference map: white under 2 mm, three greens (2-5, 5-10, 10-25), three blues (25-50, 50-75, 75-100), three purples (100-150, 150-200, 200-300), yellow (300-500), orange (500-750), red (750-1000), dark red (1000-1500), pink (1500-2500) and pale pink over 2500.",
+  "_usage": "africas2s.plot_field(total, style=STYLE, scale=africas2s.FieldScale.named('ucsb-chirps-total'))",
+  "colors": ["#FFFFFF",
+             "#C7FFBB", "#75F676", "#1DB61D", "#B8EDFB", "#50A5F8", "#1E6EEC",
+             "#DCDCFF", "#A08BFF", "#7060DE", "#FFF8AD", "#FF9E00", "#FF1300",
+             "#A30005", "#E58D8B",
+             "#FFE5E4"],
+  "levels": [2, 5, 10, 25, 50, 75, 100, 150, 200, 300, 500, 750, 1000, 1500, 2500],
+  "extend": "both",
+  "label": "Total precipitation (mm)"
+}
