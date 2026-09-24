@@ -1,0 +1,12 @@
+{
+  "_provenance": "NOAA CPC official seasonal precipitation outlook legend (cpc.ncep.noaa.gov/products/predictions/long_range/lead02/off02_prcp.gif, sampled from the September 2026 issue): 'Above Normal' greens and 'Below Normal' browns in seven bands 33-40 % (leaning), 40-50, 50-60 (likely), 60-70, 70-80, 80-90, 90-100; 'Near Normal' greys, of which CPC draws only 33-40 and 40-50 -- the five darker greys here extend that ramp so the style is well-formed and are not reached in practice; 'Equal Chances' white. Which cells are white follows the CAPC-AC display rule inherited from CPC's NMME tercile summary (cpc.ncep.noaa.gov/products/NMME/NMME_PROB_descr.html): an outer tercile is shown only where the opposite outer tercile is under 33 % (secondary_max), a leading near-normal needs both outer terciles under 33 %; a contested cell is white (equal chances). The leading category is banded from 33.3 % as in CPC's legend; the earlier 38 % leading floor of the noaa-nmme style (this style's former name) is gone. Dry season in grey.",
+  "_usage": "africas2s.TercileStyle.named('noaa-cpc', dry_mask=..., clip_to=..., extent=...)",
+  "below_colors":  ["#F0D493", "#D8A74F", "#BB6D33", "#9B5031", "#934639", "#804000", "#4F2F2F"],
+  "normal_colors": ["#CCCCCC", "#9C9C9C", "#7D7D7D", "#626262", "#4A4A4A", "#353535", "#222222"],
+  "above_colors":  ["#B3D9AB", "#95CE7F", "#48B430", "#009620", "#007814", "#28600A", "#285300"],
+  "prob_bins": [33.33, 40, 50, 60, 70, 80, 90, 100.01],
+  "secondary_max": 33,
+  "dry_color": "#BEBEBE",
+  "lakes": false,
+  "nodata_color": "#FFFFFF"
+}

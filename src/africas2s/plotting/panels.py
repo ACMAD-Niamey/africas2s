@@ -146,7 +146,8 @@ def tercile_legend_handles(style=None, *, variable_kind="precip", detailed=False
     """Legend handles for a tercile palette, for figure- or axes-level legends.
 
     With no ``style``, three saturated patches follow the ``variable_kind``
-    convention (precip: below = red; temp: below = blue). With a ``style``,
+    convention (precip: below = red; temp: below = blue; onset: below = early,
+    green, above = late, red). With a ``style``,
     ``detailed=False`` gives one patch per category (strongest color) and
     ``detailed=True`` one patch per probability band per category, labelled
     with the band ("40–50%", ">70%"). ``include_dry`` appends a dry-mask patch
@@ -162,9 +163,12 @@ def tercile_legend_handles(style=None, *, variable_kind="precip", detailed=False
     elif variable_kind == "temp":
         below_label, above_label = "Below normal (cooler)", "Above normal (warmer)"
         below_sat, above_sat = "#2166ac", "#d7301f"
+    elif variable_kind == "onset":
+        below_label, above_label = "Early onset", "Late onset"
+        below_sat, above_sat = "#1a9850", "#d7301f"
     else:
         raise ValueError(
-            f"variable_kind must be 'precip' or 'temp', got {variable_kind!r}")
+            f"variable_kind must be 'precip', 'temp' or 'onset', got {variable_kind!r}")
 
     if style is None:
         return [
@@ -218,10 +222,17 @@ def _plot_grid(entries, *, emphasize=None, style=None, ncols=3, skill_mask=None,
                smooth=False, variable_kind="precip", legend=True,
                legend_detailed=False, cmap="RdBu_r", levels=None, vmin=None,
                vmax=None, center=None, extend="both", cbar_label=None,
-               suptitle=None, panel_size=(4.2, 3.9), figsize=None):
+               scale=None, suptitle=None, panel_size=(4.2, 3.9), figsize=None):
     require_optional("matplotlib", _HINT)
     plt = importlib.import_module("matplotlib.pyplot")
     Patch = importlib.import_module("matplotlib.patches").Patch
+
+    if scale is not None:
+        if levels is not None or vmin is not None or vmax is not None or center is not None:
+            raise ValueError("scale defines the colours and bins; do not also "
+                             "pass levels, vmin, vmax or center")
+        if cbar_label is None:
+            cbar_label = scale.label
 
     if skill_mask is not None:
         entries = [(t, _apply_skill_mask(da, skill_mask), st)
@@ -241,7 +252,8 @@ def _plot_grid(entries, *, emphasize=None, style=None, ncols=3, skill_mask=None,
     # a to-be-blanked region would waste most of the colormap.
     field_entries = [(t, da, st) for t, da, st in entries if not _is_tercile(da)]
     eff_vmin, eff_vmax = vmin, vmax
-    if field_entries and levels is None and (vmin is None or vmax is None):
+    if (field_entries and levels is None and scale is None
+            and (vmin is None or vmax is None)):
         finite = []
         for _, da, entry_style in field_entries:
             pstyle = entry_style if entry_style is not None else style
@@ -276,12 +288,16 @@ def _plot_grid(entries, *, emphasize=None, style=None, ncols=3, skill_mask=None,
                                   variable_kind=variable_kind, smooth=smooth)
             ax.set_title("")
         else:
-            im = plot_field(da, style=pstyle, ax=ax, cmap=cmap,
-                            vmin=eff_vmin if levels is None else None,
-                            vmax=eff_vmax if levels is None else None,
-                            center=None if levels is not None else center,
-                            levels=levels, extend=extend, smooth=smooth,
-                            title="")
+            if scale is not None:
+                im = plot_field(da, style=pstyle, ax=ax, scale=scale,
+                                smooth=smooth, title="")
+            else:
+                im = plot_field(da, style=pstyle, ax=ax, cmap=cmap,
+                                vmin=eff_vmin if levels is None else None,
+                                vmax=eff_vmax if levels is None else None,
+                                center=None if levels is not None else center,
+                                levels=levels, extend=extend, smooth=smooth,
+                                title="")
             field_axes.append(ax)
             if im is not None:
                 field_mappable = im
@@ -335,7 +351,7 @@ def _plot_grid(entries, *, emphasize=None, style=None, ncols=3, skill_mask=None,
 def plot_matrix(panels, *, style=None, ncols=3, skill_mask=None, smooth=False,
                 variable_kind="precip", legend=True, legend_detailed=False,
                 cmap="RdBu_r", levels=None, vmin=None, vmax=None, center=None,
-                extend="both", cbar_label=None, suptitle=None,
+                extend="both", cbar_label=None, scale=None, suptitle=None,
                 panel_size=(4.2, 3.9), figsize=None):
     """Grid of forecast maps — tercile, continuous, or a mix — with shared styling.
 
@@ -365,7 +381,7 @@ def plot_matrix(panels, *, style=None, ncols=3, skill_mask=None, smooth=False,
     smooth : bool or int
         Cubic-refined contour rendering (GHACOF look) for every panel;
         continuous panels then require ``levels``. ``True`` = factor 4.
-    variable_kind : {"precip", "temp"}
+    variable_kind : {"precip", "temp", "onset"}
         Category color convention for tercile panels and the legend.
     legend, legend_detailed : bool
         Shared figure-level tercile legend below the grid (only when at least
@@ -375,6 +391,13 @@ def plot_matrix(panels, *, style=None, ncols=3, skill_mask=None, smooth=False,
         Continuous-panel scale, shared across all continuous panels (a single
         shared colorbar). With no explicit scale, vmin/vmax are computed over
         all continuous panels (symmetric about ``center`` when given).
+    scale : FieldScale or None
+        A packaged or workflow-owned classified scale
+        (``FieldScale.named("noaa-cpc-anomaly")``) for the continuous panels:
+        its colours, bin edges and open ends replace ``cmap``/``levels``/
+        ``extend``, and its ``label`` captions the colorbar unless
+        ``cbar_label`` is given. Exclusive with ``levels``/``vmin``/``vmax``/
+        ``center``.
     suptitle : str or None
         Bold figure title.
     panel_size : (float, float)
@@ -389,7 +412,7 @@ def plot_matrix(panels, *, style=None, ncols=3, skill_mask=None, smooth=False,
                       smooth=smooth, variable_kind=variable_kind, legend=legend,
                       legend_detailed=legend_detailed, cmap=cmap, levels=levels,
                       vmin=vmin, vmax=vmax, center=center, extend=extend,
-                      cbar_label=cbar_label, suptitle=suptitle,
+                      cbar_label=cbar_label, scale=scale, suptitle=suptitle,
                       panel_size=panel_size, figsize=figsize)
 
 

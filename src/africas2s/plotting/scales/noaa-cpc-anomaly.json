@@ -1,0 +1,10 @@
+{
+  "_provenance": "NOAA CPC accumulated precipitation anomaly (mm) legend, cpc.ncep.noaa.gov/products/Soilmst_Monitoring/US/Precip/Precipitation.shtml, sampled from the 1-22 September 2026 map: seven dry bands from dark red to pale yellow (under -400, -400 to -300, -300 to -200, -200 to -150, -150 to -100, -100 to -50, -50 to -25), white within +/-25, seven wet bands from pale to dark green (25-50, 50-100, 100-150, 150-200, 200-300, 300-400, over 400).",
+  "_usage": "africas2s.plot_field(anom, style=STYLE, scale=africas2s.FieldScale.named('noaa-cpc-anomaly'))",
+  "colors": ["#871910", "#CE321E", "#EB4826", "#EC6B2C", "#F1A43A", "#F5C242", "#FBE979",
+             "#FFFFFF",
+             "#CDFDAA", "#8FFC76", "#6EDD5A", "#58BD40", "#479E2C", "#275E17", "#183F0C"],
+  "levels": [-400, -300, -200, -150, -100, -50, -25, 25, 50, 100, 150, 200, 300, 400],
+  "extend": "both",
+  "label": "Precipitation anomaly (mm)"
+}

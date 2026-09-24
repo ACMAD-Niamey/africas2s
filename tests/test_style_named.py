@@ -14,7 +14,7 @@ from africas2s.plotting.forecasts import _no_dominant_label, _tercile_codes
 from africas2s.plotting.style import TercileStyle
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples" / "styles"
-PACKAGED = {"icpac", "icpac-temperature", "noaa-nmme", "ghacof", "acmad"}
+PACKAGED = {"icpac", "icpac-temperature", "icpac-onset", "noaa-cpc", "ghacof", "acmad"}
 
 
 def _probs(triples):
@@ -38,14 +38,18 @@ def test_every_packaged_style_is_listed_and_constructs():
         assert listed[name]                        # provenance text present
 
 
-def test_noaa_nmme_carries_the_display_rules():
-    style = TercileStyle.named("noaa-nmme")
-    assert style.prob_bins[0] == 38 and style.secondary_max == 33
+def test_noaa_cpc_carries_the_cpc_legend_and_the_contested_rule():
+    style = TercileStyle.named("noaa-cpc")
+    assert style.prob_bins[0] == pytest.approx(33.33) and style.secondary_max == 33
+    assert len(style.prob_bins) == 8                   # seven bands, 33-40 ... 90-100
+    assert style.above_colors[0].upper() == "#B3D9AB"  # CPC's 'leaning above' green
+    assert style.below_colors[-1].upper() == "#4F2F2F" # CPC's darkest 'likely below'
+    assert style.normal_colors[:2] == ["#CCCCCC", "#9C9C9C"]
     assert not style.lakes
 
 
 def test_overrides_win_over_the_file():
-    style = TercileStyle.named("noaa-nmme", extent=(6, 32, -18, 24), lakes=True)
+    style = TercileStyle.named("noaa-cpc", extent=(6, 32, -18, 24), lakes=True)
     assert style.extent == (6, 32, -18, 24) and style.lakes
 
 
@@ -108,8 +112,8 @@ def test_secondary_max_constrains_only_the_opposite_outer_tercile():
 def test_no_dominant_legend_label_only_when_a_rule_applies():
     assert _no_dominant_label(TercileStyle.named("ghacof")) is None
     assert "40" in _no_dominant_label(TercileStyle.named("icpac"))
-    label = _no_dominant_label(TercileStyle.named("noaa-nmme"))
-    assert "38" in label and "33" in label
+    label = _no_dominant_label(TercileStyle.named("noaa-cpc"))
+    assert "33" in label and "38" not in label        # only the contested rule remains
 
 
 def test_smooth_render_honours_the_rules():
@@ -124,7 +128,7 @@ def test_smooth_render_honours_the_rules():
     probs = xr.DataArray(p, dims=("tercile", "lat", "lon"),
                          coords={"tercile": [0, 1, 2], "lat": np.linspace(-4, 4, 6),
                                  "lon": np.linspace(30, 42, 7)})
-    for name in ("noaa-nmme", "icpac"):
+    for name in ("noaa-cpc", "icpac"):
         fig = plot_tercile_forecast(probs, style=TercileStyle.named(name), smooth=2)
         assert fig is not None
         plt.close(fig)
@@ -133,7 +137,7 @@ def test_smooth_render_honours_the_rules():
 def test_legend_handles_include_the_no_dominant_patch():
     pytest.importorskip("matplotlib")
     from africas2s.plotting.panels import tercile_legend_handles
-    labels = [h.get_label() for h in tercile_legend_handles(TercileStyle.named("noaa-nmme"))]
+    labels = [h.get_label() for h in tercile_legend_handles(TercileStyle.named("noaa-cpc"))]
     assert any(l.startswith("No dominant category") for l in labels)
     labels = [h.get_label() for h in tercile_legend_handles(TercileStyle.named("ghacof"))]
     assert not any(l.startswith("No dominant category") for l in labels)

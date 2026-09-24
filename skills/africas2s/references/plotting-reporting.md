@@ -17,6 +17,7 @@ Plotting/reporting live in `africas2s.plotting` and `africas2s.reporting`. Impor
 | Several forecasts as one grid (per-model, per-method, tercile and/or continuous) | `ds.plot_matrix(panels, style=...)` |
 | Component forecasts plus the combined objective | `ds.plot_components_objective(components, objective, style=...)` |
 | A regional centre's colour language from a JSON style file | `ds.TercileStyle.from_json(path, dry_mask=..., ...)` |
+| An anomaly / total / onset-date / spread map in an institution's classified scale | `ds.plot_field(da, style=..., scale=ds.FieldScale.named("noaa-cpc-anomaly"))` |
 | The style's dry/clip masks as data masks (e.g. before `write_terciles`) | `ds.region_masks(field, style)` |
 | `SkillReport` with `spatial=True` | `plot_skill_maps(report, ["rpss", ...])`; full PDF: `report.to_pdf(...)` |
 | CV tercile hindcasts + obs | `plot_reliability_diagram(cv_terc, obs)` |
@@ -44,6 +45,7 @@ ds.plot_components_objective(...)    # = plotting.panels.plot_components_objecti
 ds.tercile_legend_handles(...)       # = plotting.panels.tercile_legend_handles
 ds.region_masks(...)                 # = plotting.forecasts.region_masks
 ds.TercileStyle                      # = plotting.style.TercileStyle (.named / .from_json)
+ds.FieldScale                        # = plotting.style.FieldScale (.named / .from_json / .cmap / .norm)
 ds.tercile_diverging_cmap(...)       # = plotting.style.tercile_diverging_cmap
 ```
 
@@ -53,16 +55,19 @@ ds.tercile_diverging_cmap(...)       # = plotting.style.tercile_diverging_cmap
 plot_tercile_forecast(pr_fcst, *, style=None, ax=None, title=None,
                       variable_kind="precip", legend=True, smooth=False)
 ```
-IRI-style dominant-tercile map from a `(tercile, lat, lon)` array. `variable_kind` ∈ `{"precip", "temp"}` selects the palette; color intensity scales with `(max_prob − 1/3)`, saturating at 0.37. `smooth` (needs `style`) renders cubic-refined filled contours instead of grid cells, the GHACOF/ACMAD outlook look; `True` = refinement factor 4, or pass an int factor. Smoothing only reshapes the drawn boundaries, never invents data outside the field's footprint.
+IRI-style dominant-tercile map from a `(tercile, lat, lon)` array. `variable_kind` ∈ `{"precip", "temp", "onset"}` selects the palette and legend wording (`onset`: below = early, above = late — pair with the `icpac-onset` style); color intensity scales with `(max_prob − 1/3)`, saturating at 0.37. `smooth` (needs `style`) renders cubic-refined filled contours instead of grid cells, the GHACOF/ACMAD outlook look; `True` = refinement factor 4, or pass an int factor. Smoothing only reshapes the drawn boundaries, never invents data outside the field's footprint.
 
 ```python
 plot_field(field, *, style=None, ax=None, cmap="RdBu_r", vmin=None, vmax=None,
            center=None, levels=None, extend="both", smooth=False,
-           title=None, grey_dry=True) -> mappable | None
+           title=None, grey_dry=True, scale=None) -> mappable | None
     # levels = discrete bin edges (BoundaryNorm) — the classified-scale
     # convention of operational anomaly/onset maps; exclusive with
     # vmin/vmax/center. smooth (needs levels) contours the refined field;
     # returns None (and writes "no data" on the axes) if nothing is finite.
+    # scale = a FieldScale (below): its colours, levels and extend in one
+    # object, painted bin for bin by both renderers; exclusive with
+    # levels/vmin/vmax/center, cmap ignored.
 plot_tercile_comparison(forecast, reference, *, style=None, axes=None,
                         labels=("forecast", "reference", "difference"),
                         diff_cmap="BrBG", diff_limit=40.0, title=None) -> (axes, diff_mappable)
@@ -89,7 +94,7 @@ One call per figure for the grids every workflow needs; all live in
 plot_matrix(panels, *, style=None, ncols=3, skill_mask=None, smooth=False,
             variable_kind="precip", legend=True, legend_detailed=False,
             cmap="RdBu_r", levels=None, vmin=None, vmax=None, center=None,
-            extend="both", cbar_label=None, suptitle=None,
+            extend="both", cbar_label=None, scale=None, suptitle=None,
             panel_size=(4.2, 3.9), figsize=None) -> Figure
 ```
 Grid of maps. `panels` is `{title: DataArray}` or an iterable of
@@ -99,7 +104,9 @@ two mix freely (e.g. raw-anomaly and post-CCA panels side by side). Tercile
 panels share one figure-level legend (`legend_detailed=True` shows every
 probability band); continuous panels share one scale and one colorbar
 (auto-computed vmin/vmax over all continuous panels unless given, symmetric
-about `center` when set). A per-panel style overrides the figure style — e.g.
+about `center` when set; or pass `scale=FieldScale.named(...)` and the
+continuous panels share that classified scale and its `label` as the colorbar
+caption). A per-panel style overrides the figure style — e.g.
 `(title, objective, replace(style, dry_mask=None))` for a dry-mask-off panel.
 `skill_mask` (bool, True = insufficient skill) blanks cells on every panel at
 display time; coordinate-bearing masks are aligned per panel, bare arrays must
@@ -133,14 +140,15 @@ tercile_diverging_cmap(style, *, name="tercile_diverging", n=256) -> Colormap
 Institutional colour languages ship inside the package as JSON style files
 (`src/africas2s/plotting/styles/`) and load by name with `named()`; `icpac` is
 the default when no name is given. Keyword overrides win and carry the
-non-JSON fields (`TercileStyle.named("noaa-nmme", dry_mask=too_dry,
+non-JSON fields (`TercileStyle.named("noaa-cpc", dry_mask=too_dry,
 clip_to=ECCAS, extent=(6, 32, -18, 24))`).
 
 | name | what it is |
 |---|---|
 | `icpac` (default) | ICPAC rainfall scheme + criteria from the RCC colormap sheet: orange→red below, cyan near-normal, green above; six bands 40-50 … 90-100 %; a leading category under 40 % is white ("no dominant category"); dry mask `#BEBEBE`, lakes `#73B2FF` |
 | `icpac-temperature` | the same sheet's temperature ramps (blues cooler, cyans near, yellow→dark-red warmer); use with `variable_kind="temp"` |
-| `noaa-nmme` | the NOAA CPC NMME tercile-summary display rules as relayed by CAPC-AC: dominant only if leading > 38 % **and** the opposite outer tercile < 33 % (`secondary_max=33`) — a near-normal runner-up does not blank an outer tercile, while a leading near-normal needs both outers under 33 % — else white; blue wet, orange dry, green normal; grey dry season. The rules name colours, not hex values — the ramps are standard sequential Blues/Oranges/Greens, banded 38-50-60-70-80-90-100 |
+| `icpac-onset` | ICPAC's onset-of-rains terciles (GHACOF onset probability map): early = greens, near-normal = cyans, late = yellow→red, seven bands from 33.3 %; below = early, above = late, so plot with `variable_kind="onset"` |
+| `noaa-cpc` | the NOAA CPC seasonal-outlook legend as used by CAPC-AC (formerly `noaa-nmme`): above = greens, below = browns, near-normal = greys (CPC draws only the 33-40 and 40-50 greys; the darker ones pad the ramp), seven bands 33-40 (leaning), 40-50, 50-60 (likely) … 90-100 %. White = "equal chances": with `secondary_max=33` an outer tercile shows only where the opposite outer tercile is under 33 %, a leading near-normal needs both outers under 33 % — a near-normal runner-up never blanks an outer tercile. The old 38 % leading floor is gone; the leading category is banded from 33.3 % as in CPC's legend. Grey dry season |
 | `ghacof` | the GHACOF outlook graphics (yellow/cyan/green, 5 bands from 33.3 %, lakes on) — the language the ICPAC MAM/OND and CAPC-AC AMJJ replications used |
 | `acmad` | ACMAD continental palette (orange/grey/green, 6 bands with the 33.33–36 extra step) |
 
@@ -148,6 +156,32 @@ A workflow that owns its own palette keeps it as a JSON file of the same shape
 and loads it with `from_json(path, **overrides)`. Keys starting with `_` are
 comments; unknown keys raise. `examples/styles/` carries copies of `ghacof.json`
 and `acmad.json` as templates.
+
+**Field scales.** The classified colour scales of anomaly, total, onset-date
+and spread maps ship the same way, as `FieldScale` JSON files in
+`src/africas2s/plotting/scales/`:
+
+```python
+FieldScale.named(name, **overrides) -> FieldScale     # colors, levels, extend, label
+FieldScale.list_named() -> {name: provenance}
+FieldScale.from_json(path, **overrides) -> FieldScale
+scale.cmap / scale.norm        # ListedColormap (open ends set as under/over) + BoundaryNorm
+scale.bin_colors               # the closed bins' colours only
+```
+A scale is `colors` (one per bin plus one per open end, in value order),
+`levels` (the bin edges), `extend` (`neither`/`min`/`max`/`both`) and a
+colorbar `label`; `len(colors) == len(levels) - 1 + open ends` is enforced.
+Pass one as `scale=` to `plot_field` / `plot_matrix` (it replaces
+`cmap`/`levels`/`extend`, and both the cell and the `smooth` contour renderer
+paint exactly its colours bin for bin), or use `cmap`/`norm` on your own axes.
+
+| name | what it is |
+|---|---|
+| `noaa-cpc-anomaly` | CPC's accumulated-precipitation anomaly bar (mm): seven dry bands dark red → pale yellow (< −400 … −50 to −25), white within ±25, seven wet bands pale → dark green (25-50 … > 400) |
+| `ucsb-chirps-anomaly` | the Climate Hazards Center CHIRPS anomaly bar (mm): red / orange / yellow then dark brown → tan deficits (< −300 … −25 to −10), white within ±10, greens (10-100), blues (100-300), lavender (300-500), purple (> 500) |
+| `ucsb-chirps-total` | the CHIRPS rainfall-total bar (mm): white under 2, greens 2-25, blues 25-100, purples 100-300, yellow 300-500, orange, red, dark red, pink to 2500, pale pink above |
+| `icpac-onset-date` | ICPAC's onset-date legend: grey before the search window, one colour per dekad for ten dekads (days 0-100 since the window start), turquoise for "later"; levels are days, so label the colorbar ticks with dates for the season in hand |
+| `icpac-onset-spread` | ICPAC's onset-spread legend (standard deviation, days): 0-5, 5-10, 10-20, 20-30, grey over 30 |
 
 **Dominance rules.** Two style fields decide when a valid cell is left white:
 the first `prob_bins` edge (the leading probability must reach it — with the
@@ -266,7 +300,7 @@ class TercileStyle:
                                   # under it for the cell to be filled (NMME: 33)
 ```
 
-Pass as `style=` to the tercile plotting functions to control palette, probability binning, dominance rules, dry masking, country clipping, lakes, and extent. `TercileStyle.named(name="icpac", **overrides)` builds one of the packaged colour languages (`icpac`, `icpac-temperature`, `noaa-nmme`, `ghacof`, `acmad`; `list_named()` enumerates them); `TercileStyle.from_json(path, **overrides)` builds one from a JSON style file a workflow owns (see "Panel grids, composites, and style files").
+Pass as `style=` to the tercile plotting functions to control palette, probability binning, dominance rules, dry masking, country clipping, lakes, and extent. `TercileStyle.named(name="icpac", **overrides)` builds one of the packaged colour languages (`icpac`, `icpac-temperature`, `icpac-onset`, `noaa-cpc`, `ghacof`, `acmad`; `list_named()` enumerates them); `TercileStyle.from_json(path, **overrides)` builds one from a JSON style file a workflow owns (see "Panel grids, composites, and style files").
 
 ## Reports
 
