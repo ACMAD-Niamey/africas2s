@@ -133,7 +133,7 @@ def show_schemes(save=None):
 
     entries = _collect()
 
-    HEADER, SUBHEADER, ENTRY, FAMILY, PAD = 0.42, 0.30, 1.18, 2.05, 0.10   # row heights, inches
+    HEADER, SUBHEADER, ENTRY, FAMILY, PAD = 0.42, 0.30, 1.18, 2.55, 0.10   # row heights, inches
     width = 9.0
     heights, rows = [], []
     last_section = last_sub = None
@@ -249,22 +249,20 @@ def _draw_family(fig, members, y, h, total):
             _draw_ramp(ax, ramp, st.prob_bins)
             ax.set_title(lab, fontsize=7.5, pad=2)
 
-    bar_y, bar_h = (y + 0.30) / total, 0.28 / total
-    widths = [0.56, 0.28] if len(scales) == 2 else [0.88 / max(len(scales), 1)] * len(scales)
-    x = 0.06
-    for (sname, _), wd in zip(scales, widths):
+    bar_h = 0.26 / total
+    for j, (sname, _) in enumerate(scales):
         sc = FieldScale.named(sname)
-        ax = fig.add_axes([x, bar_y, wd, bar_h])
+        bar_y = (y + h - 1.60 - j * 0.56) / total
+        ax = fig.add_axes([0.06, bar_y, 0.88, bar_h])
         cb = fig.colorbar(cm.ScalarMappable(norm=sc.norm, cmap=sc.cmap),
                           cax=ax, orientation="horizontal", extend=sc.extend,
                           extendfrac=0.035)
         cb.set_ticks(sc.levels)
         cb.ax.tick_params(labelsize=6.5, length=2, pad=1.5)
         caption = f"{sname} — {sc.label}" if sc.label else sname
-        cb.ax.set_title(caption, fontsize=6.3, pad=2, loc="left", color="0.35")
+        cb.ax.set_title(caption, fontsize=6.5, pad=2, loc="left", color="0.35")
         cb.outline.set_edgecolor("0.6")
         cb.outline.set_linewidth(0.6)
-        x += wd + 0.04
 
 
 def main(argv=None):
