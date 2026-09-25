@@ -28,9 +28,9 @@ _SECTIONS = ("Tercile probabilities", "Anomalies & totals", "Onset")
 # Issuing organization + reference label per scheme-name prefix (longest match
 # wins). New packaged schemes that follow the naming convention need no edit.
 _ORGS = (
-    ("icpac-onset", "ICPAC / GHACOF"),
-    ("icpac", "ICPAC / GHACOF"),
-    ("ghacof", "ICPAC / GHACOF"),
+    ("icpac-onset", "ICPAC"),
+    ("icpac", "RCC default"),   # the RCC colormap-palettes sheet schemes
+    ("ghacof", "ICPAC"),
     ("acmad", "ACMAD"),
     ("noaa-cpc", "NOAA CPC"),
     ("ucsb-chirps", "UCSB Climate Hazards Center"),
@@ -57,6 +57,13 @@ def _section(name, kind):
     return "Tercile probabilities" if kind == "style" else "Anomalies & totals"
 
 
+def _subsection(name, section):
+    """Sub-heading within a section, or None (terciles split by variable)."""
+    if section == "Tercile probabilities":
+        return "Temperature" if "temperature" in name else "Precipitation"
+    return None
+
+
 def _labels(name):
     for key, labels in _TERCILE_LABELS.items():
         if key in name:
@@ -65,16 +72,22 @@ def _labels(name):
 
 
 def _collect():
-    """[(section, kind, name, provenance)] in display order.
+    """[(section, subsection, kind, name, provenance)] in display order.
 
-    kind is ``"style"`` (TercileStyle) or ``"scale"`` (FieldScale); order is
-    section order, styles before scales within a section, then by name.
+    ``subsection`` is a sub-heading within the section (terciles split into
+    Precipitation / Temperature) or None. ``kind`` is ``"style"``
+    (TercileStyle) or ``"scale"`` (FieldScale); order is section order,
+    subsection, styles before scales, then name.
     """
     entries = [("style", n, prov) for n, prov in TercileStyle.list_named().items()]
     entries += [("scale", n, prov) for n, prov in FieldScale.list_named().items()]
-    out = [(_section(n, k), k, n, prov) for k, n, prov in entries]
+    out = []
+    for k, n, prov in entries:
+        section = _section(n, k)
+        out.append((section, _subsection(n, section), k, n, prov))
     order = {s: i for i, s in enumerate(_SECTIONS)}
-    out.sort(key=lambda e: (order.get(e[0], 99), e[1] != "style", e[2]))
+    out.sort(key=lambda e: (order.get(e[0], 99), (e[1] or "") != "Precipitation",
+                            e[1] or "", e[2] != "style", e[3]))
     return out
 
 
@@ -118,15 +131,19 @@ def show_schemes(save=None):
 
     entries = _collect()
 
-    HEADER, ENTRY, PAD = 0.42, 1.18, 0.10          # row heights, inches
+    HEADER, SUBHEADER, ENTRY, PAD = 0.42, 0.30, 1.18, 0.10   # row heights, inches
     width = 9.0
     heights, rows = [], []
-    last_section = None
-    for section, kind, name, prov in entries:
+    last_section = last_sub = None
+    for section, sub, kind, name, prov in entries:
         if section != last_section:
             rows.append(("header", section))
             heights.append(HEADER)
-            last_section = section
+            last_section, last_sub = section, None
+        if sub is not None and sub != last_sub:
+            rows.append(("subheader", sub))
+            heights.append(SUBHEADER)
+            last_sub = sub
         rows.append(("entry", (kind, name, prov)))
         heights.append(ENTRY)
     total = sum(heights) + PAD * 2 + 0.5
@@ -144,6 +161,10 @@ def show_schemes(save=None):
                 [0.035, 0.965], [(y + 0.04) / total] * 2,
                 transform=fig.transFigure, color="0.75", linewidth=0.8)
                 for _ in (0,))
+            continue
+        if rtype == "subheader":
+            fig.text(0.05, (y + 0.08) / total, payload, fontsize=10,
+                     fontweight="bold", style="italic", color="0.25")
             continue
         kind, name, prov = payload
         title_y = (y + h - 0.24) / total
@@ -167,7 +188,8 @@ def show_schemes(save=None):
             sc = FieldScale.named(name)
             ax = fig.add_axes([0.05, bar_y, 0.90, bar_h])
             cb = fig.colorbar(cm.ScalarMappable(norm=sc.norm, cmap=sc.cmap),
-                              cax=ax, orientation="horizontal", extend=sc.extend)
+                              cax=ax, orientation="horizontal", extend=sc.extend,
+                              extendfrac=0.035)  # uniform pointy ends across bars
             cb.set_ticks(sc.levels)
             cb.ax.tick_params(labelsize=6.5, length=2, pad=1.5)
             if sc.label:

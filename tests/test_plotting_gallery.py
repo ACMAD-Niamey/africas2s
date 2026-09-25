@@ -13,11 +13,11 @@ from africas2s.plotting.style import FieldScale, TercileStyle
 
 def test_collect_covers_every_named_scheme():
     entries = _collect()
-    names = [n for _, _, n, _ in entries]
+    names = [n for _, _, _, n, _ in entries]
     assert sorted(names) == sorted(list(TercileStyle.list_named()) +
                                    list(FieldScale.list_named()))
     # every entry carries a non-empty provenance note
-    assert all(prov for _, _, _, prov in entries)
+    assert all(prov for _, _, _, _, prov in entries)
 
 
 def test_sections_group_by_value_type():
@@ -26,17 +26,29 @@ def test_sections_group_by_value_type():
     assert _section("ghacof", "style") == "Tercile probabilities"
     assert _section("noaa-cpc-anomaly", "scale") == "Anomalies & totals"
     # display order: terciles, then continuous, then onset
-    sections = [s for s, _, _, _ in _collect()]
+    sections = [s for s, _, _, _, _ in _collect()]
     firsts = sorted(set(sections), key=sections.index)
     assert firsts == ["Tercile probabilities", "Anomalies & totals", "Onset"]
 
 
 def test_org_labels():
-    assert _org("ghacof") == "ICPAC / GHACOF"
-    assert _org("icpac-temperature") == "ICPAC / GHACOF"
+    assert _org("ghacof") == "ICPAC"
+    assert _org("icpac") == "RCC default"
+    assert _org("icpac-temperature") == "RCC default"
+    assert _org("icpac-onset-date") == "ICPAC"
     assert _org("noaa-cpc-anomaly") == "NOAA CPC"
     assert _org("ucsb-chirps-total") == "UCSB Climate Hazards Center"
     assert _org("acmad") == "ACMAD"
+
+
+def test_tercile_subsections_split_precip_and_temperature():
+    from africas2s.plotting.gallery import _subsection
+    assert _subsection("icpac-temperature", "Tercile probabilities") == "Temperature"
+    assert _subsection("ghacof", "Tercile probabilities") == "Precipitation"
+    assert _subsection("icpac-onset-date", "Onset") is None
+    subs = [sub for s, sub, _, _, _ in _collect() if s == "Tercile probabilities"]
+    firsts = sorted(set(subs), key=subs.index)
+    assert firsts == ["Precipitation", "Temperature"]
 
 
 def test_edge_label_reads_probability_cap_as_100():
