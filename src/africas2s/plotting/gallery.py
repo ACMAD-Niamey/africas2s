@@ -30,7 +30,6 @@ _SECTIONS = ("Tercile probabilities", "Anomalies & totals", "Onset")
 _ORGS = (
     ("icpac-onset", "ICPAC"),
     ("icpac", "RCC default"),   # the RCC colormap-palettes sheet schemes
-    ("ghacof", "ICPAC"),
     ("acmad", "ACMAD"),
     ("noaa-cpc", "NOAA CPC"),
     ("ucsb-chirps", "UCSB Climate Hazards Center"),

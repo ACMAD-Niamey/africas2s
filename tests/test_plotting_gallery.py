@@ -32,7 +32,6 @@ def test_sections_group_by_value_type():
 
 
 def test_org_labels():
-    assert _org("ghacof") == "ICPAC"
     assert _org("icpac") == "RCC default"
     assert _org("icpac-temperature") == "RCC default"
     assert _org("icpac-onset-date") == "ICPAC"
@@ -44,7 +43,7 @@ def test_org_labels():
 def test_tercile_subsections_split_precip_and_temperature():
     from africas2s.plotting.gallery import _subsection
     assert _subsection("icpac-temperature", "Tercile probabilities") == "Temperature"
-    assert _subsection("ghacof", "Tercile probabilities") == "Precipitation"
+    assert _subsection("acmad", "Tercile probabilities") == "Precipitation"
     assert _subsection("icpac-onset-date", "Onset") is None
     subs = [sub for s, sub, _, _, _ in _collect() if s == "Tercile probabilities"]
     firsts = sorted(set(subs), key=subs.index)
