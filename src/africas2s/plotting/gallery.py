@@ -57,9 +57,12 @@ def _section(name, kind):
 
 
 def _subsection(name, section):
-    """Sub-heading within a section, or None (terciles split by variable)."""
+    """Sub-heading within a section, or None (terciles split by variable;
+    onset schemes group under their issuing organization)."""
     if section == "Tercile probabilities":
         return "Temperature" if "temperature" in name else "Precipitation"
+    if section == "Onset":
+        return _org(name)
     return None
 
 
@@ -130,7 +133,7 @@ def show_schemes(save=None):
 
     entries = _collect()
 
-    HEADER, SUBHEADER, ENTRY, PAD = 0.42, 0.30, 1.18, 0.10   # row heights, inches
+    HEADER, SUBHEADER, ENTRY, FAMILY, PAD = 0.42, 0.30, 1.18, 2.05, 0.10   # row heights, inches
     width = 9.0
     heights, rows = [], []
     last_section = last_sub = None
@@ -143,8 +146,17 @@ def show_schemes(save=None):
             rows.append(("subheader", sub))
             heights.append(SUBHEADER)
             last_sub = sub
-        rows.append(("entry", (kind, name, prov)))
-        heights.append(ENTRY)
+        if section == "Onset":
+            # one "family card" per organization: the tercile triptych plus
+            # its companion scales, bound as a single record
+            if rows and rows[-1][0] == "family":
+                rows[-1][1].append((kind, name, prov))
+            else:
+                rows.append(("family", [(kind, name, prov)]))
+                heights.append(FAMILY)
+        else:
+            rows.append(("entry", (kind, name, prov)))
+            heights.append(ENTRY)
     total = sum(heights) + PAD * 2 + 0.5
     fig = plt.figure(figsize=(width, total))
     fig.suptitle("africas2s packaged colour schemes", fontsize=13,
@@ -164,6 +176,9 @@ def show_schemes(save=None):
         if rtype == "subheader":
             fig.text(0.05, (y + 0.08) / total, payload, fontsize=10,
                      fontweight="bold", style="italic", color="0.25")
+            continue
+        if rtype == "family":
+            _draw_family(fig, payload, y, h, total)
             continue
         kind, name, prov = payload
         title_y = (y + h - 0.24) / total
@@ -199,6 +214,57 @@ def show_schemes(save=None):
         fig.savefig(save, dpi=150, bbox_inches="tight",
                     facecolor="white")
     return fig
+
+
+def _draw_family(fig, members, y, h, total):
+    """One bordered card binding an organization's scheme family: the tercile
+    triptych on top, the companion field scales sharing the row beneath."""
+    import matplotlib.pyplot as plt
+    from matplotlib import cm
+    from matplotlib.patches import FancyBboxPatch
+
+    fig.patches.append(FancyBboxPatch(
+        (0.04, (y + 0.10) / total), 0.92, (h - 0.22) / total,
+        transform=fig.transFigure, boxstyle="round,pad=0.004",
+        facecolor="#fbfbfb", edgecolor="0.8", linewidth=0.8, zorder=-1))
+
+    styles = [(n, prov) for k, n, prov in members if k == "style"]
+    scales = [(n, prov) for k, n, prov in members if k == "scale"]
+    names = [n for _, n, _ in members]
+    title_y = (y + h - 0.30) / total
+    fig.text(0.06, title_y, "  ·  ".join(names), fontsize=9.5, fontweight="bold")
+    note = ("One product family: probability terciles plus the companion "
+            "value scales, sampled from the same reference maps.")
+    fig.text(0.06, title_y - 0.16 / total, note, fontsize=7, color="0.35")
+
+    ramp_y, ramp_h = (y + h - 1.00) / total, 0.30 / total
+    for sname, _ in styles[:1]:
+        st = TercileStyle.named(sname)
+        labels = _labels(sname)
+        ramps = (st.below_colors, st.normal_colors, st.above_colors)
+        gap, x0, span = 0.030, 0.06, 0.88
+        w = (span - 2 * gap) / 3
+        for i, (ramp, lab) in enumerate(zip(ramps, labels)):
+            ax = fig.add_axes([x0 + i * (w + gap), ramp_y, w, ramp_h])
+            _draw_ramp(ax, ramp, st.prob_bins)
+            ax.set_title(lab, fontsize=7.5, pad=2)
+
+    bar_y, bar_h = (y + 0.30) / total, 0.28 / total
+    widths = [0.56, 0.28] if len(scales) == 2 else [0.88 / max(len(scales), 1)] * len(scales)
+    x = 0.06
+    for (sname, _), wd in zip(scales, widths):
+        sc = FieldScale.named(sname)
+        ax = fig.add_axes([x, bar_y, wd, bar_h])
+        cb = fig.colorbar(cm.ScalarMappable(norm=sc.norm, cmap=sc.cmap),
+                          cax=ax, orientation="horizontal", extend=sc.extend,
+                          extendfrac=0.035)
+        cb.set_ticks(sc.levels)
+        cb.ax.tick_params(labelsize=6.5, length=2, pad=1.5)
+        caption = f"{sname} — {sc.label}" if sc.label else sname
+        cb.ax.set_title(caption, fontsize=6.3, pad=2, loc="left", color="0.35")
+        cb.outline.set_edgecolor("0.6")
+        cb.outline.set_linewidth(0.6)
+        x += wd + 0.04
 
 
 def main(argv=None):

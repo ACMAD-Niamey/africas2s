@@ -44,7 +44,7 @@ def test_tercile_subsections_split_precip_and_temperature():
     from africas2s.plotting.gallery import _subsection
     assert _subsection("icpac-temperature", "Tercile probabilities") == "Temperature"
     assert _subsection("acmad", "Tercile probabilities") == "Precipitation"
-    assert _subsection("icpac-onset-date", "Onset") is None
+    assert _subsection("icpac-onset-date", "Onset") == "ICPAC"
     subs = [sub for s, sub, _, _, _ in _collect() if s == "Tercile probabilities"]
     firsts = sorted(set(subs), key=subs.index)
     assert firsts == ["Precipitation", "Temperature"]
