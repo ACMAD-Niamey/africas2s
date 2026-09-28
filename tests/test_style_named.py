@@ -14,7 +14,7 @@ from africas2s.plotting.forecasts import _no_dominant_label, _tercile_codes
 from africas2s.plotting.style import TercileStyle
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples" / "styles"
-PACKAGED = {"icpac", "icpac-temperature", "icpac-onset", "noaa-cpc", "ghacof", "acmad"}
+PACKAGED = {"icpac", "icpac-temperature", "icpac-onset", "noaa-cpc", "acmad"}
 
 
 def _probs(triples):
@@ -58,7 +58,7 @@ def test_unknown_name_lists_what_exists():
         TercileStyle.named("nope")
 
 
-@pytest.mark.parametrize("name", ["ghacof", "acmad"])
+@pytest.mark.parametrize("name", ["acmad"])
 def test_packaged_copies_match_the_example_files(name):
     packaged = TercileStyle.named(name)
     example = TercileStyle.from_json(EXAMPLES / f"{name}.json")
@@ -110,7 +110,7 @@ def test_secondary_max_constrains_only_the_opposite_outer_tercile():
 
 
 def test_no_dominant_legend_label_only_when_a_rule_applies():
-    assert _no_dominant_label(TercileStyle.named("ghacof")) is None
+    assert _no_dominant_label(TercileStyle.named("acmad")) is None
     assert "40" in _no_dominant_label(TercileStyle.named("icpac"))
     label = _no_dominant_label(TercileStyle.named("noaa-cpc"))
     assert "33" in label and "38" not in label        # only the contested rule remains
@@ -139,5 +139,5 @@ def test_legend_handles_include_the_no_dominant_patch():
     from africas2s.plotting.panels import tercile_legend_handles
     labels = [h.get_label() for h in tercile_legend_handles(TercileStyle.named("noaa-cpc"))]
     assert any(l.startswith("No dominant category") for l in labels)
-    labels = [h.get_label() for h in tercile_legend_handles(TercileStyle.named("ghacof"))]
+    labels = [h.get_label() for h in tercile_legend_handles(TercileStyle.named("acmad"))]
     assert not any(l.startswith("No dominant category") for l in labels)

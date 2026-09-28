@@ -1,8 +1,21 @@
 {
-  "_provenance": "ICPAC onset-date spread (inter-member standard deviation, days) scheme, sampled from the GHACOF OND 2026 onset map: R colours yellowgreen 0-5 days, greenyellow 5-10, yellow 10-20, orange 20-30, grey over 30.",
+  "_provenance": "ICPAC onset-date spread (inter-member standard deviation, days) scheme, sampled from the GHACOF OND 2026 onset map: R colours yellowgreen 0-5 days, greenyellow 5-10, yellow 10-20, orange 20-30, grey over 30. The low-end arrow repeats the 0-5 colour purely for display consistency (spread cannot be negative).",
   "_usage": "africas2s.plot_field(onset_std, style=STYLE, scale=africas2s.FieldScale.named('icpac-onset-spread'))",
-  "colors": ["#9ACD32", "#ADFF2F", "#FFFF00", "#FFA500", "#BEBEBE"],
-  "levels": [0, 5, 10, 20, 30],
-  "extend": "max",
+  "colors": [
+    "#9ACD32",
+    "#9ACD32",
+    "#ADFF2F",
+    "#FFFF00",
+    "#FFA500",
+    "#BEBEBE"
+  ],
+  "levels": [
+    0,
+    5,
+    10,
+    20,
+    30
+  ],
+  "extend": "both",
   "label": "Onset spread (std dev, days)"
 }

@@ -57,7 +57,7 @@ def test_every_packaged_scale_is_listed_and_well_formed():
     ("ucsb-chirps-anomaly", 14, "both"),    # 6 deficit + white + 7 surplus
     ("ucsb-chirps-total", 16, "both"),      # white under 2 mm ... pale pink over 2500
     ("icpac-onset-date", 12, "both"),       # grey before the window, 10 dekads, later
-    ("icpac-onset-spread", 5, "max"),       # 0-5, 5-10, 10-20, 20-30, over 30
+    ("icpac-onset-spread", 6, "both"),      # under-arrow, 0-5, 5-10, 10-20, 20-30, over 30
 ])
 def test_packaged_scale_shapes(name, n_colors, extend):
     scale = FieldScale.named(name)
@@ -102,7 +102,7 @@ def test_bin_colors_drop_the_open_ends():
                        levels=[0, 1, 2], extend="both")
     assert scale.bin_colors == ["#222222", "#333333"]
     assert FieldScale.named("icpac-onset-spread").bin_colors == \
-        FieldScale.named("icpac-onset-spread").colors[:-1]
+        FieldScale.named("icpac-onset-spread").colors[1:-1]
 
 
 # ------------------------------------------------------------------ rendering

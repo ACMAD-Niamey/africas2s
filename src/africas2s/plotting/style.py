@@ -9,7 +9,7 @@ optional dry/country/lake styling. Nothing here encodes a specific region.
 Institutional colour languages ship as JSON files inside the package and load
 by name — tercile styles from ``plotting/styles/`` via
 :meth:`TercileStyle.named` (``icpac`` — the default — ``icpac-temperature``,
-``icpac-onset``, ``noaa-cpc``, ``ghacof``, ``acmad``), field scales from
+``icpac-onset``, ``noaa-cpc``, ``acmad``), field scales from
 ``plotting/scales/`` via :meth:`FieldScale.named` (``noaa-cpc-anomaly``,
 ``ucsb-chirps-anomaly``, ``ucsb-chirps-total``, ``icpac-onset-date``,
 ``icpac-onset-spread``). A workflow that owns its own palette loads it from a
@@ -123,7 +123,7 @@ class TercileStyle:
         fields JSON cannot hold (a ``dry_mask`` array, a shapely ``clip_to``
         geometry) or to vary a shared file per figure::
 
-            style = TercileStyle.from_json("styles/ghacof.json",
+            style = TercileStyle.from_json("styles/my-org.json",
                                            dry_mask=too_dry,
                                            clip_to=ECCAS_COUNTRIES,
                                            extent=(5, 32, -12, 8))
@@ -143,7 +143,7 @@ class TercileStyle:
         CPC seasonal-outlook legend as used by CAPC-AC: green above, brown
         below, grey near-normal in seven bands from 33.3 %, and a contested
         cell — opposite outer tercile at 33 % or more — left white as "equal
-        chances"), ``"ghacof"`` (the GHACOF outlook graphics) or ``"acmad"``.
+        chances") or ``"acmad"`` (the ACMAD continental palette).
         Keyword ``overrides`` behave exactly as in :meth:`from_json`: they carry
         the fields JSON cannot hold (``dry_mask``, a geometry ``clip_to``) and
         win over the file::
