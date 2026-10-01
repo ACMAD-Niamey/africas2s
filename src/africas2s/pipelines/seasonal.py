@@ -147,6 +147,24 @@ def seasonal_mme(
     else:
         years = _intersect_years(predictor_tracks, obs)
     obs_sliced = obs.sel(year=years)
+
+    # transform_predictand="cpt_empirical" (§ACMAD parity): CPT's menu-541
+    # "Transform Y Data" regime with zero-bound. The pipeline (not the method)
+    # owns it because CPT uses TWO transform conventions: the full-period fit
+    # transforms obs against the climatology reference (p=(r+0.5)/(n+1)) while
+    # each CV fold re-transforms its own training sample without the self-tie
+    # (p=r/(n+1)), and the error variance mixes the two spaces (fold-space CV
+    # predictions vs reference-space obs — CPT's own code comments acknowledge
+    # the inconsistency). Thresholds use the bound-augmented quantile position
+    # q*(n+1)-0.5. All CCA fitting, s2, thresholds and probabilities operate
+    # in the transformed space; deterministic outputs (forecast_mean,
+    # per-model forecasts/CV hindcasts) are therefore in normal-score units.
+    cpt_transform = (cpt_args or {}).get("transform_predictand") == "cpt_empirical"
+    obs_fold_raw = None
+    if cpt_transform:
+        from ..tercile import cpt_empirical_transform
+        obs_fold_raw = obs_sliced
+        obs_sliced = cpt_empirical_transform(obs_sliced)
     resolved_forecast_year = _resolve_forecast_year(predictor_tracks, years, forecast_year)
     resolved_tercile_method = _resolve_tercile_method(method, tercile_method)
 
@@ -162,13 +180,20 @@ def seasonal_mme(
                 model_years = _native_years_for_model(
                     track_name, model_name, hcst, obs)
                 model_obs = obs.sel(year=model_years)
+                model_fold_raw = None
+                if cpt_transform:
+                    from ..tercile import cpt_empirical_transform
+                    model_fold_raw = model_obs
+                    model_obs = cpt_empirical_transform(model_obs)
                 per_model_obs[key] = model_obs
             else:
                 model_obs = obs_sliced
+                model_fold_raw = obs_fold_raw
             cv_hindcast, forecast_pred, m_full, levs = _per_model_cv(
                 hcst, fcst, model_obs,
                 method=method, cv_scheme=cv, cpt_args=cpt_args,
                 forecast_year=resolved_forecast_year, verbose=verbose,
+                fold_obs_raw=model_fold_raw,
             )
             per_model_cv_hindcasts[key] = cv_hindcast
             per_model_forecasts[key] = forecast_pred
@@ -308,8 +333,12 @@ def seasonal_mme(
             keep = [y for y in o.year.values if lo <= int(y) <= hi]
             return o.sel(year=keep) if len(keep) >= 3 else o
 
+        if cpt_transform:
+            from ..tercile import cpt_transformed_boundaries as _boundaries
+        else:
+            _boundaries = _cpt_spatial_boundaries
         if not native_years:
-            t33, t67 = _cpt_spatial_boundaries(_clim_years(obs_sliced))
+            t33, t67 = _boundaries(_clim_years(obs_sliced))
         per_model_maps = []
         for key, cv_pred in per_model_cv_hindcasts.items():
             track_name, model_name = key
@@ -318,7 +347,7 @@ def seasonal_mme(
             n_modes = int(getattr(m, "x_eof_modes_", getattr(m, "n_modes", 3)))
             if native_years:
                 model_obs = per_model_obs[key]
-                t33, t67 = _cpt_spatial_boundaries(_clim_years(model_obs))
+                t33, t67 = _boundaries(_clim_years(model_obs))
                 dof = len(model_obs.year) - n_modes - 1
             else:
                 model_obs = obs_sliced
@@ -504,7 +533,7 @@ _METHOD_PARAMS = (
 
 
 def _per_model_cv(hcst, fcst, obs_sliced, *, method, cv_scheme, cpt_args,
-                  forecast_year, verbose):
+                  forecast_year, verbose, fold_obs_raw=None):
     """Run a CV-folded fit-and-predict for one (hcst, fcst) pair.
 
     Returns (cv_hindcast, forecast_pred, fitted_method_full, leverages).
@@ -519,6 +548,11 @@ def _per_model_cv(hcst, fcst, obs_sliced, *, method, cv_scheme, cpt_args,
     """
     method_cls = get_method(method)
     method_kwargs = {k: v for k, v in (cpt_args or {}).items() if k in _METHOD_PARAMS}
+    # transform_predictand="cpt_empirical" is a pipeline-level regime (the obs
+    # arrive here already transformed; folds re-transform below via
+    # fold_obs_raw) — never forward it to the method.
+    if method_kwargs.get("transform_predictand") == "cpt_empirical":
+        method_kwargs.pop("transform_predictand")
 
     # Slice hcst to the intersection years used for fitting/scoring.
     # Use .values to avoid xarray carrying along any non-dimension scalar
@@ -599,10 +633,20 @@ def _per_model_cv(hcst, fcst, obs_sliced, *, method, cv_scheme, cpt_args,
     leverages = [] if hasattr(method_cls, "leverage") else None
     can_leverage = leverages is not None
 
+    if fold_obs_raw is not None:
+        from ..tercile import cpt_empirical_transform
     for train_years, test in fold_iter:
         test_years = test if isinstance(test, list) else [test]
         m = method_cls(**method_kwargs)
-        m.fit(hcst_sliced.sel(year=train_years), obs_sliced.sel(year=train_years),
+        if fold_obs_raw is not None:
+            # CPT re-transforms each fold's training sample by itself, without
+            # the self-tie (distribs.F95 gaussian, no-ref branch) — the fold's
+            # predictions therefore live in the FOLD's normal-score space.
+            train_obs = cpt_empirical_transform(
+                fold_obs_raw.sel(year=train_years), ref=None)
+        else:
+            train_obs = obs_sliced.sel(year=train_years)
+        m.fit(hcst_sliced.sel(year=train_years), train_obs,
               **method_kwargs)
         test_forecast = hcst_sliced.sel(year=test_years)
         pred = m.predict(test_forecast, **method_kwargs)

@@ -345,3 +345,80 @@ def _tercile_parametric_global(cv_predictions, obs, residuals, n, method):
     out = xr.concat(results, dim="year")
     out["year"] = obs.year.values
     return out
+
+
+def cpt_empirical_transform(obs, ref="self"):
+    """CPT's empirical normal-score transform of a predictand (distribs.F95
+    ``gaussian``, ``it_emp`` — the state menu 541 "Transform Y Data" turns on).
+
+    Per cell, each value's percentile is ``g / (nref + 1)`` with
+    ``g = 1 + #{ref values below} + 0.5 * #{ref ties}`` and the result is the
+    standard-normal quantile of that percentile. Two reference conventions,
+    exactly as in the Fortran:
+
+    - ``ref="self"`` — the full-period fit: CPT passes the climatology sample
+      as the reference, which for a fit on its own training years makes each
+      value its own reference (the self-comparison counts as a tie), i.e.
+      ``p = (rank + 0.5) / (n + 1)`` for untied data. Zero-bound consistent:
+      the lower bound occupies the vacant bottom slot of the ``n + 1`` grid.
+    - ``ref=None`` — the no-reference rule CPT applies INSIDE cross-validation
+      folds (each fold's training sample is transformed by itself without the
+      self-tie), i.e. ``p = rank / (n + 1)`` for untied data.
+
+    ``obs``: DataArray with a ``year`` dim. Returns a same-shaped DataArray of
+    normal scores (all-NaN cells stay NaN). Ties are handled by average ranks,
+    matching the pairwise half-counts in the Fortran.
+    """
+    vals = obs.values
+    year_ax = list(obs.dims).index("year")
+    v = np.moveaxis(vals, year_ax, 0)
+    shp = v.shape
+    n = shp[0]
+    flat = v.reshape(n, -1)
+    out = np.full_like(flat, np.nan, dtype=float)
+    valid = ~np.isnan(flat).any(axis=0)
+    fv = flat[:, valid]
+    order = np.argsort(fv, axis=0, kind="mergesort")
+    ranks = np.empty_like(fv)
+    np.put_along_axis(ranks, order,
+                      np.broadcast_to(np.arange(1, n + 1, dtype=float)[:, None],
+                                      fv.shape).copy(), axis=0)
+    # average ranks for ties, column by column (ties are rare: rounded data)
+    for j in np.nonzero((np.diff(np.sort(fv, axis=0), axis=0) == 0).any(axis=0))[0]:
+        col = fv[:, j]
+        _, inv, cnt = np.unique(col, return_inverse=True, return_counts=True)
+        sums = np.zeros(cnt.size)
+        np.add.at(sums, inv, ranks[:, j])
+        ranks[:, j] = sums[inv] / cnt[inv]
+    if ref == "self":
+        p = (ranks + 0.5) / (n + 1)
+    elif ref is None:
+        p = ranks / (n + 1)
+    else:
+        raise ValueError(f"ref must be 'self' or None; got {ref!r}")
+    out[:, valid] = norm.ppf(p)
+    out = np.moveaxis(out.reshape(shp), 0, year_ax)
+    return obs.copy(data=out)
+
+
+def cpt_transformed_boundaries(obs):
+    """Tercile boundaries in CPT's empirically-transformed space.
+
+    With the empirical transform active, the predictand is exactly normal by
+    construction, and CPT's climatological tercile thresholds in that space
+    are the ANALYTIC standard-normal terciles ``Phi^-1(1/3)`` / ``Phi^-1(2/3)``
+    — constant maps, not per-cell empirical quantiles (verified against
+    CPT.x 17.8.3 output to ~1e-4 pp; interpolating the transformed order
+    statistics instead leaves ~0.01-1 pp residuals, worst at tied cells).
+    Returns (t33, t67) spatial DataArrays (NaN where ``obs`` is all-NaN) for a
+    (year, ...) ``obs`` of transformed values.
+    """
+    finite = np.isfinite(obs.values).any(axis=list(obs.dims).index("year"))
+    spatial_dims = [d for d in obs.dims if d != "year"]
+    coords = {k: c for k, c in obs.coords.items()
+              if k != "year" and set(obs[k].dims).issubset(set(spatial_dims))}
+    t33 = xr.DataArray(np.where(finite, norm.ppf(1.0 / 3.0), np.nan),
+                       dims=spatial_dims, coords=coords)
+    t67 = xr.DataArray(np.where(finite, norm.ppf(2.0 / 3.0), np.nan),
+                       dims=spatial_dims, coords=coords)
+    return t33, t67

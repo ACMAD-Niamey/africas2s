@@ -197,8 +197,11 @@ class CCAMethod(MethodBase):
             self.y_valid_ = self.y_valid_ & (y_clim >= drymask_threshold)
         X = X[:, self.x_valid_]
         Y = Y[:, self.y_valid_]
-        X = np.nan_to_num(X, nan=np.nanmean(X))
-        Y = np.nan_to_num(Y, nan=np.nanmean(Y))
+        # Fill remaining (partial-year) gaps with each cell's own long-term
+        # mean — CPT's missing-value replacement method 1 — never the global
+        # mean, which perturbs the EOFs of every partially-missing cell.
+        X = np.where(np.isnan(X), np.nanmean(X, axis=0, keepdims=True), X)
+        Y = np.where(np.isnan(Y), np.nanmean(Y, axis=0, keepdims=True), Y)
 
         # transform_predictand="Empirical": map each predictand column to normal
         # scores (rank -> plotting position -> Gaussian quantile) before fitting;
@@ -304,7 +307,7 @@ class CCAMethod(MethodBase):
         n = self.n_train_
         x = forecast.mean("member").values.reshape(1, -1)
         x = x[:, self.x_valid_]
-        x = np.nan_to_num(x, nan=np.nanmean(x))
+        x = np.where(np.isnan(x), self.x_mean_[None, :], x)   # cell's training mean
         x_anom = x - self.x_mean_
         if self.x_std_ is not None:
             x_anom = x_anom / self.x_std_
@@ -359,7 +362,7 @@ class CCAMethod(MethodBase):
         for m in range(len(forecast.member)):
             x = forecast.isel(member=m).values.reshape(1, -1)
             x = x[:, self.x_valid_]
-            x = np.nan_to_num(x, nan=np.nanmean(x))
+            x = np.where(np.isnan(x), self.x_mean_[None, :], x)   # cell's training mean
 
             x_anom = x.ravel() - self.x_mean_
             if self.x_std_ is not None:
