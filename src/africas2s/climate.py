@@ -18,6 +18,8 @@ accumulation window is *for*.
 """
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -29,6 +31,8 @@ __all__ = [
     "accumulate",
     "doy_anomaly",
     "doy_climatology",
+    "forecast_increments",
+    "forecast_window",
     "frequency_below",
     "lead_window_reduce",
     "percent_of_normal",
@@ -462,9 +466,13 @@ def _lead_days(da, lead_dim, lead_units):
 
     ECMWF S2S arrives with ``lead_time`` in hours (24, 48, ... 1104) carrying a
     ``units`` attribute. Reading that attribute rather than assuming keeps this
-    honest for a source that files leads in days.
+    honest for a source that files leads in days. acmadDL's issuance-keyed
+    products (CHIRPS-GEFS, the rhiza/* forecasts) carry a ``timedelta64`` axis,
+    which needs no attribute at all.
     """
     lead = da[lead_dim]
+    if np.issubdtype(lead.dtype, np.timedelta64):
+        return (lead / np.timedelta64(1, "D")).astype("float64")
     units = lead_units or lead.attrs.get("units", "hours")
     units = str(units).lower()
     if units.startswith("hour"):
@@ -474,6 +482,54 @@ def _lead_days(da, lead_dim, lead_units):
     raise ValueError(
         f"lead_window_reduce cannot interpret lead units {units!r}; "
         "pass lead_units='hours' or 'days' explicitly.")
+
+
+def _lead_day_index(days):
+    """The 1-based day a lead step belongs to: the day the step *ends* in.
+
+    A daily axis (24 h, 48 h, ...) maps to 1, 2, ...; a 3-hourly axis maps
+    3 h ... 24 h to day 1 and 27 h ... 48 h to day 2. Lead 0 is day 0, so it
+    stays outside every 1-based window and inside a 0-based one (CHIRPS-GEFS
+    counts the issuance day as lead 0).
+    """
+    return np.ceil(np.round(days, 9))
+
+
+def _lead_intervals(days):
+    """How long each lead step lasts, in days: the gap to the previous lead.
+
+    The first step runs from issuance to its own lead; a first lead of 0 (an
+    issuance-day field) borrows the following step's length instead.
+    """
+    vals = np.asarray(days, dtype="float64")
+    if vals.size == 0:
+        return days.copy()
+    dt = np.empty_like(vals)
+    dt[1:] = np.diff(vals)
+    dt[0] = vals[0] if vals[0] > 0 else (dt[1] if vals.size > 1 else 1.0)
+    return days.copy(data=dt)
+
+
+_RATE_UNITS = re.compile(
+    r"^(?P<num>.+?)\s*(?:/\s*|\s+)(?P<den>day|d|hour|hr|h|second|sec|s)(?:\^?-1)?$",
+    re.IGNORECASE,
+)
+_PER_DAY = {"day": 1.0, "d": 1.0, "hour": 24.0, "hr": 24.0, "h": 24.0,
+            "second": 86400.0, "sec": 86400.0, "s": 86400.0}
+
+
+def _rate_factor(units):
+    """(per-day factor, amount units) for a rate, or (None, units) for an amount.
+
+    ``"mm/day"`` and ``"mm day-1"`` integrate over step length in days;
+    ``"mm/hour"`` over hours; ``"kg m-2 s-1"`` over seconds. ``"mm"``, ``"K"``
+    or ``"1"`` are amounts (or states) and add plainly.
+    """
+    text = str(units).strip()
+    m = _RATE_UNITS.match(text)
+    if not m or m.group("den").lower() not in _PER_DAY:
+        return None, text
+    return _PER_DAY[m.group("den").lower()], m.group("num").strip()
 
 
 def lead_window_reduce(da, windows=None, *, lead_dim="lead_time", how="mean",
@@ -519,29 +575,142 @@ def lead_window_reduce(da, windows=None, *, lead_dim="lead_time", how="mean",
         raise ValueError("lead_window_reduce requires at least one window.")
 
     days = _lead_days(da, lead_dim, lead_units)
+    day_index = _lead_day_index(days)
+    dt = _lead_intervals(days)
+    out_units = da.attrs.get("units")
     pieces, names = [], []
     for name, bounds in windows.items():
         first, last = bounds
         if first > last:
             raise ValueError(f"window {name!r}: first day {first} is after last day {last}.")
-        mask = (days >= first) & (days <= last)
+        mask = (day_index >= first) & (day_index <= last)
         n = int(mask.sum())
         if n == 0:
             raise ValueError(
                 f"window {name!r} ({first}-{last} days) selects no leads; the axis "
                 f"spans {float(days.min()):.0f}-{float(days.max()):.0f} days.")
-        if require_complete and n < (last - first + 1):
+        n_days = int(np.unique(np.asarray(day_index)[np.asarray(mask)]).size)
+        if require_complete and n_days < (last - first + 1):
             raise ValueError(
-                f"window {name!r} ({first}-{last} days) has only {n} of "
+                f"window {name!r} ({first}-{last} days) has only {n_days} of "
                 f"{last - first + 1} days on the lead axis. Pass "
                 "require_complete=False to reduce it anyway.")
-        pieces.append(getattr(da.isel({lead_dim: mask}), how)(lead_dim))
+        sub = da.isel({lead_dim: mask})
+        w = dt.isel({lead_dim: mask})
+        sub_daily = bool((w < 1 - 1e-9).any())
+        if how in ("max", "min") or not sub_daily:
+            # One lead per day (or coarser): the plain reduction is exact.
+            piece = getattr(sub, how)(lead_dim)
+        elif how == "mean":
+            # Steps of unequal length (3-hourly to 144 h, then 6-hourly) must
+            # each count for how long they last.
+            piece = (sub * w).sum(lead_dim) / w.where(sub.notnull()).sum(lead_dim)
+        else:  # sum over sub-daily steps: integrate a rate, add an amount
+            if "units" not in da.attrs:
+                raise ValueError(
+                    f"window {name!r}: the lead axis steps more often than daily, so "
+                    "how='sum' must know whether the variable is a rate (integrate over "
+                    "step length) or an amount (add). Set da.attrs['units'] "
+                    "(e.g. 'mm/day' or 'mm') or use how='mean'.")
+            factor, amount_units = _rate_factor(da.attrs["units"])
+            if factor is None:
+                piece = sub.sum(lead_dim)
+            else:
+                piece = (sub * w * factor).sum(lead_dim)
+                out_units = amount_units
+        pieces.append(piece)
         names.append(name)
 
     out = xr.concat(pieces, dim="window")
     out = out.assign_coords(window=names)
     out.attrs = dict(da.attrs)
+    if out_units is not None:
+        out.attrs["units"] = out_units
     return out
+
+
+def _single_issuance(fc, init_dim):
+    """Drop a length-1 issuance dimension, keeping its stamp as a scalar coord."""
+    if init_dim in fc.dims:
+        if fc.sizes[init_dim] != 1:
+            raise ValueError(
+                f"one issuance at a time: {init_dim!r} has {fc.sizes[init_dim]} values; "
+                f"select one (fc.isel({init_dim}=k)) first.")
+        fc = fc.squeeze(init_dim)
+    return fc
+
+
+def forecast_window(fc, window, *, how="mean", lead_dim="lead_time", init_dim="init_time",
+                    lead_units=None, require_complete=True):
+    """One lead window of a single-issuance forecast, in the shape ``predict`` takes.
+
+    acmadDL hands back a real-time forecast as ``(init_time, lead_time, member,
+    lat, lon)``; a fitted method wants ``(member, lat, lon)`` for one target
+    window. This squeezes the single issuance, reduces the lead axis over
+    ``window`` with :func:`lead_window_reduce` (so a timedelta axis and
+    sub-daily steps are handled there), and drops the window dim.
+
+    ``window`` is ``(first_day, last_day)`` (1-based, inclusive) or a key of
+    :data:`LEAD_WINDOWS_S2S`. ``how="sum"`` for rainfall totals, ``"mean"``
+    for a state variable.
+    """
+    if isinstance(window, str):
+        if window not in LEAD_WINDOWS_S2S:
+            raise ValueError(
+                f"unknown lead window {window!r}; choose from {sorted(LEAD_WINDOWS_S2S)} "
+                "or pass (first_day, last_day).")
+        first, last = LEAD_WINDOWS_S2S[window]
+    else:
+        first, last = window
+    fc = _single_issuance(fc, init_dim)
+    out = lead_window_reduce(fc, {"window": (first, last)}, lead_dim=lead_dim, how=how,
+                             lead_units=lead_units, require_complete=require_complete)
+    out = out.squeeze("window", drop=True)
+    out.attrs["lead_window"] = f"days {first}-{last}"
+    return out
+
+
+def forecast_increments(fc, *, how="sum", lead_dim="lead_time", init_dim="init_time",
+                        time_dim="time", lead_units=None):
+    """A single-issuance forecast as daily increments on calendar dates.
+
+    This is the ``forecast=`` input :func:`africas2s.complete` takes: one value
+    per forecast day stamped with that day's date, so it splices onto daily
+    observations. Each lead step is assigned to the day it ends in; sub-daily
+    rates are integrated to daily totals (``how="sum"``) or duration-weighted
+    (``how="mean"``) by :func:`lead_window_reduce`. A last day the forecast
+    only partly covers is dropped rather than returned as a short total.
+
+    The issuance date comes from the ``init_dim`` coordinate, or failing that
+    from ``time_dim`` (acmadDL's valid time) minus the lead.
+    """
+    fc = _single_issuance(fc, init_dim)
+    days = _lead_days(fc, lead_dim, lead_units)
+    if init_dim in fc.coords:
+        init = pd.Timestamp(np.asarray(fc[init_dim].values).ravel()[0])
+    elif time_dim in fc.coords:
+        valid0 = pd.Timestamp(np.asarray(fc[time_dim].values).ravel()[0])
+        init = valid0 - pd.Timedelta(days=float(days.values.ravel()[0]))
+    else:
+        raise ValueError(
+            f"forecast_increments needs the issuance date: an {init_dim!r} coordinate "
+            f"or a {time_dim!r} (valid time) coordinate along {lead_dim!r}.")
+    index = np.asarray(_lead_day_index(days)).astype(int)
+    dt = np.asarray(_lead_intervals(days))
+    present = sorted(d for d in set(index.tolist()) if d >= 1)
+    if not present:
+        raise ValueError("the forecast has no lead steps after the issuance.")
+    counts = {d: int((index == d).sum()) for d in present}
+    # A partial last day has fewer steps than the day before it. Compare with
+    # the neighbour, not the maximum: IFS-ENS steps 3-hourly to 144 h and
+    # 6-hourly after, so a complete late day has half the steps of an early one.
+    if (dt < 1 - 1e-9).any() and len(present) > 1 and counts[present[-1]] < counts[present[-2]]:
+        present = present[:-1]                       # partial last day: not a daily total
+    body = fc.drop_vars(time_dim, errors="ignore")
+    out = lead_window_reduce(body, {str(d): (d, d) for d in present}, lead_dim=lead_dim,
+                             how=how, lead_units=lead_units, require_complete=False)
+    dates = init.normalize() + pd.to_timedelta([d - 1 for d in present], unit="D")
+    return out.rename(window=time_dim).assign_coords({time_dim: dates.values})
 
 
 def doy_climatology(da, *, time_dim="time", baseline=None, smooth=None):
