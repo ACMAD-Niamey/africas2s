@@ -760,6 +760,37 @@ def _normalize_smoothed_forecast(forecast):
     return forecast
 
 
+def _align_smoothed_forecast_seasons(forecast, predictor):
+    """Place a forecast's seasons in the predictor's season slots.
+
+    smoothed_regression applies its gamma parameters and (a, b) coefficients
+    season by season, indexed positionally, so a forecast covering only the
+    target season must still sit in that season's slot — otherwise it is
+    silently transformed through the WRONG season's gamma. Callers commonly
+    have a forecast for one target season only, so reindex onto the
+    predictor's season coordinate here (absent seasons become NaN and are
+    simply not read) rather than making every caller pad it by hand.
+
+    A forecast whose season labels already match the predictor's passes
+    through untouched. Unknown labels are an error, not a silent drop.
+    """
+    if "season" not in getattr(forecast, "dims", ()):
+        return forecast
+    if "season" not in predictor.coords or "season" not in forecast.coords:
+        return forecast
+    pred_seasons = list(predictor["season"].values)
+    fcst_seasons = list(forecast["season"].values)
+    if fcst_seasons == pred_seasons:
+        return forecast
+    unknown = [s for s in fcst_seasons if s not in pred_seasons]
+    if unknown:
+        raise ValueError(
+            "smoothed_regression: `forecast` has season(s) "
+            f"{unknown} that are not in the predictor's seasons {pred_seasons}."
+        )
+    return forecast.reindex(season=pred_seasons)
+
+
 def _pool_smoothed_super_ensemble(predictor, forecast):
     """Resolve smoothed_regression's multi-model entry shapes into a single pooled
     ``(hindcast, forecast)`` pair.
@@ -989,6 +1020,7 @@ def _calibrate_smoothed_regression_tercile(predictor, obs, *, forecast, forecast
                 "smoothed_regression output_type='tercile' requires an ensemble "
                 "`forecast` with a 'member' dimension (to estimate the ensemble spread)."
             )
+        forecast = _align_smoothed_forecast_seasons(forecast, predictor)
         forecast = forecast.transpose("season", "member", "lat", "lon")
     else:
         year = int(forecast_year) if forecast_year is not None else int(predictor["year"].max())
