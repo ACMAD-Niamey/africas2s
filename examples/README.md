@@ -50,6 +50,28 @@ CorrDiff demo needs an NVIDIA GPU.
 | `uv run python examples/seasonal_forecast_eastafrica_mam.py --phase 0 1 2` | The full PyCPT-parity reference forecast | CDS |
 | `uv run python examples/demo_corrdiff.py` | NVIDIA CorrDiff diffusion downscaling | GPU |
 
+## Regional forecast examples — the five RCCs
+
+[`regional-forecasts/`](regional-forecasts/) holds five complete CCA-based
+seasonal rainfall workflows, one per WMO-designated Regional Climate Centre on
+the continent — **ICPAC** (Greater Horn of Africa), **CAPC-AC** (Central
+Africa / ECCAS), **AGRHYMET / RCC-WAS** (West Africa and the Sahel), **SADC**
+(Southern Africa) and **NA-RCC** (North Africa). Each runs on its RCC's own
+domain and rainy season, through roster, calibration, objective forecast,
+cross-validated skill and onset.
+
+They are jupytext percent-format scripts — run them directly or build an
+executed notebook with `tools/py2nb.py`. Unlike the demos above they are run
+**from their own directory**, not the repo root, because they read
+`assets/logos/` and write `outputs/` by relative path:
+
+```bash
+cd examples/regional-forecasts && python ICPAC_OND2026.py
+```
+
+They need CDS credentials and [acmadDL](https://github.com/ACMAD-Niamey/acmadDL).
+See [`regional-forecasts/README.md`](regional-forecasts/README.md).
+
 Outputs (PNG, NetCDF) are written to `examples/output/`, which is git-ignored.
 Tercile maps draw coastlines and borders when `cartopy` or `geopandas` is
 available, and fall back to a plain map otherwise.
