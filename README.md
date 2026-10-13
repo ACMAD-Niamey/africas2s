@@ -117,6 +117,14 @@ It uses Rosetta to fetch ERA5 temperature observations (`obs/era5`) and ECMWF se
 
 The demo needs CDS credentials in `~/.cdsapirc` with the relevant dataset licences accepted (see the Rosetta README for setup). `examples/README.md` lists all demos and their prerequisites.
 
+`examples/regional-forecasts/` holds five worked examples showing basic
+CCA-based seasonal forecast workflows for the continent's five Regional
+Climate Centres — **ICPAC** (Greater Horn of Africa), **CAPC-AC** (Central
+Africa / ECCAS), **AGRHYMET / RCC-WAS** (West Africa and the Sahel), **SADC**
+(Southern Africa) and **NA-RCC** (North Africa) — each on its own domain, its
+own rainy season and its own display conventions. See
+[`examples/regional-forecasts/README.md`](examples/regional-forecasts/README.md).
+
 ## Calibration
 
 `africas2s.calibrate()` produces tercile probabilities with dims `(tercile, lat, lon)` directly. Use it when the predictor is already on the target grid, or when a scalar index drives the forecast.
