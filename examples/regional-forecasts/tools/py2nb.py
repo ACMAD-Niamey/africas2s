@@ -6,8 +6,11 @@ round-trip with nbformat + nbclient, which are already there.
 
 usage: py2nb.py SOURCE.py TARGET.ipynb [--no-exec] [--timeout SECONDS]
 """
+import base64
+import io
 import sys
 import re
+from pathlib import Path
 import nbformat
 from nbformat.v4 import new_notebook, new_code_cell, new_markdown_cell
 
@@ -53,6 +56,40 @@ def demarkdown(lines):
     return out
 
 
+def inline_local_images(body, src_dir, display_h=52, retina=2):
+    """Rewrite <img src="relative/path.png"> to a base64 data URI.
+
+    GitHub's .ipynb renderer does not resolve relative image paths in markdown
+    cells (README.md does), and raw.githubusercontent URLs need auth on a
+    private repo — an embedded image is the only form that renders both on
+    GitHub and in a local Jupyter. Images are re-encoded at `retina` x the
+    declared display height to keep the notebook small.
+    """
+    def repl(m):
+        src = m.group(1)
+        if src.startswith(("data:", "http://", "https://")):
+            return m.group(0)
+        path = (Path(src_dir) / src).resolve()
+        if not path.exists():
+            print(f"  warning: image not found, left as-is: {src}")
+            return m.group(0)
+        try:
+            from PIL import Image
+            im = Image.open(path).convert("RGBA")
+            h = display_h * retina
+            im = im.resize((max(1, round(im.width * h / im.height)), h),
+                           Image.LANCZOS)
+            buf = io.BytesIO()
+            im.save(buf, format="PNG", optimize=True)
+            raw = buf.getvalue()
+        except ImportError:                       # no Pillow: embed as-is
+            raw = path.read_bytes()
+        uri = "data:image/png;base64," + base64.b64encode(raw).decode()
+        return m.group(0).replace(f'src="{src}"', f'src="{uri}"')
+
+    return re.sub(r'<img src="([^"]+)"', repl, body)
+
+
 def build(src_path):
     src = open(src_path).read()
     nb = new_notebook()
@@ -65,6 +102,7 @@ def build(src_path):
             continue
         body = "\n".join(demarkdown(lines) if kind == "markdown" else lines)
         if kind == "markdown":
+            body = inline_local_images(body, Path(src_path).parent)
             nb.cells.append(new_markdown_cell(body))
         else:
             cell = new_code_cell(body)

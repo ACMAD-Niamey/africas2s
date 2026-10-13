@@ -60,9 +60,10 @@ Africa / ECCAS), **AGRHYMET / RCC-WAS** (West Africa and the Sahel), **SADC**
 domain and rainy season, through roster, calibration, objective forecast,
 cross-validated skill and onset.
 
-They are jupytext percent-format scripts — run them directly or build an
-executed notebook with `tools/py2nb.py`. Unlike the demos above they are run
-**from their own directory**, not the repo root, because they read
+They are jupytext percent-format scripts, each committed alongside its
+**executed notebook**, so the figures are readable on GitHub without running
+anything. Rebuild one with `tools/py2nb.py`. Unlike the demos above they are
+run **from their own directory**, not the repo root, because they read
 `assets/logos/` and write `outputs/` by relative path:
 
 ```bash

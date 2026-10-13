@@ -55,9 +55,14 @@ A cold run fetches a lot: the observation records are the slow part (~25
 minutes for a new region/season), model hindcasts are minutes each. Everything
 caches, so a second run only does what is missing.
 
-Executed notebooks are **not** committed — the five come to ~27 MB with their
-figures inline. `.gitignore` here keeps `*.ipynb` and `outputs/` out of the
-repo; build them locally with `tools/py2nb.py`.
+The **executed notebooks are committed** alongside the sources, so every
+figure and number is readable on GitHub without running anything. Rebuild one
+with `tools/py2nb.py` after editing its `.py`.
+
+`py2nb.py` embeds the RCC logo marks as base64 at build time: GitHub's `.ipynb`
+renderer does not resolve relative image paths in markdown cells (README files
+do), so an embedded image is the only form that renders both on GitHub and in a
+local Jupyter.
 
 ## A note on the rosters
 

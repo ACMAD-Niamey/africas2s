@@ -1,6 +1,5 @@
-# Built artefacts: the executed notebooks are ~27 MB with figures inline.
+# Figures written by a run; the committed notebooks already carry them inline.
 outputs/
-*.ipynb
 
 # The root .gitignore excludes *.png (generated figures). The RCC logo marks
 # are source assets the examples render in their intro, so re-include them.
