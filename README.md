@@ -2,7 +2,7 @@
 
 Modular downscaling, calibration, and verification for seasonal climate forecasts.
 
-AfricaS2S turns coarse global-model (GCM) forecasts and fine-resolution observations into calibrated, high-resolution forecast products, and scores them with cross-validated skill metrics. It operates on xarray arrays and is agnostic to where the data came from, so it pairs naturally with a data layer like [Rosetta](https://github.com/accord-research/rosetta) but does not require it.
+AfricaS2S turns coarse global-model (GCM) forecasts and fine-resolution observations into calibrated, high-resolution forecast products, and scores them with cross-validated skill metrics. It operates on xarray arrays and is agnostic to where the data came from, so it pairs naturally with a data layer like [acmadDL](https://github.com/ACMAD-Niamey/acmadDL) but does not require it.
 
 Downscaling methods, skill metrics, and ensemble strategies are looked up by name from a registry, so you select them with plain strings and can add new ones without changing the orchestration code.
 
@@ -18,10 +18,10 @@ The distribution is published as `africas2s`; the import name is `africas2s`:
 import africas2s
 ```
 
-The shapefile and region-clipping helpers additionally require Rosetta:
+The shapefile and region-clipping helpers additionally require acmadDL:
 
 ```bash
-pip install accord-rosetta
+pip install acmadDL
 ```
 
 AfricaS2S requires Python 3.10 or newer.
@@ -113,9 +113,9 @@ The repository ships a runnable end-to-end demo:
 python examples/demo_forecast.py
 ```
 
-It uses Rosetta to fetch ERA5 temperature observations (`obs/era5`) and ECMWF seasonal hindcasts (`c3s/ecmwf-monthly`), reshapes them into AfricaS2S inputs, then runs optimize, tercile conversion, and skill scoring. Rosetta handles the remote retrieval and normalization; AfricaS2S starts from the prepared xarray datasets.
+It uses acmadDL to fetch ERA5 temperature observations (`obs/era5`) and ECMWF seasonal hindcasts (`c3s/ecmwf-monthly`), reshapes them into AfricaS2S inputs, then runs optimize, tercile conversion, and skill scoring. acmadDL handles the remote retrieval and normalization; AfricaS2S starts from the prepared xarray datasets.
 
-The demo needs CDS credentials in `~/.cdsapirc` with the relevant dataset licences accepted (see the Rosetta README for setup). `examples/README.md` lists all demos and their prerequisites.
+The demo needs CDS credentials in `~/.cdsapirc` with the relevant dataset licences accepted (see the acmadDL README for setup). `examples/README.md` lists all demos and their prerequisites.
 
 `examples/regional-forecasts/` holds five worked examples showing basic
 CCA-based seasonal forecast workflows for the continent's five Regional
@@ -243,9 +243,9 @@ Tools: `list_registry`, `describe_dataset`, `downscale`, `optimize`, `calibrate`
 
 The server is a thin wrapper over the public API, so method behaviour, cross-validation rules, and output shapes are exactly as documented above. Inspect it interactively with `npx @modelcontextprotocol/inspector africas2s-mcp`.
 
-## Relationship to Rosetta
+## Relationship to acmadDL
 
-Rosetta handles data acquisition and normalization; AfricaS2S handles forecasting and verification. The interface between them is standardized xarray, so AfricaS2S stays source-agnostic and works with any data prepared the same way.
+acmadDL handles data acquisition and normalization; AfricaS2S handles forecasting and verification. The interface between them is standardized xarray, so AfricaS2S stays source-agnostic and works with any data prepared the same way.
 
 ## Development setup
 
@@ -255,12 +255,12 @@ cd africas2s
 uv sync
 ```
 
-Some examples also use Rosetta for data acquisition:
+Some examples also use acmadDL for data acquisition:
 
 ```bash
 cd ..
-git clone https://github.com/accord-research/rosetta.git
-cd rosetta
+git clone https://github.com/ACMAD-Niamey/acmadDL.git
+cd acmadDL
 uv sync
 ```
 
