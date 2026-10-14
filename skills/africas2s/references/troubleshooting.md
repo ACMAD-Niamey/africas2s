@@ -52,4 +52,4 @@ If a "wrong result" (rather than an error) is the problem, first check the disci
 - `scripts/nightly/run_country.py` — per-country nightly pipeline (`python -m scripts.nightly.run_country`).
 - `scripts/s2s/run_issuance.py` — sub-seasonal testbed (`python -m scripts.s2s.run_issuance`).
 - `scripts/reproduce.py` — step-by-step PyCPT/CPT-Fortran parity reproduction (r ≈ 0.9996).
-- `notebooks/experimentB1.ipynb` — PyCPT vs AfricaS2S side-by-side comparison.
+- `scripts/reproduce.py` and `tests/test_agreement.py` — the CPT-parity checks (`pytest -m agreement`).
