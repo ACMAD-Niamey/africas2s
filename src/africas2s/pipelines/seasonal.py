@@ -581,17 +581,25 @@ def _per_model_cv(hcst, fcst, obs_sliced, *, method, cv_scheme, cpt_args,
         # loop. Ceilings reuse the x/y_eof_range upper bounds (ACMAD reference:
         # 10 for obs-SST predictors, 7 for NMME predictors).
         from ..methods.cca import select_modes_north
-        xe, ye, cc = select_modes_north(
-            hcst_sliced,
-            obs_sliced,
+        # The spectrum tested must be the one the CCA is fit on: forward the
+        # same standardize / lat_weights the method will use (correlation-
+        # matrix EOFs with CPT band weights under the parity knobs give a
+        # materially different eigenvalue ladder than raw covariance).
+        _north_kw = dict(
             x_ceiling=(cpt_args or {}).get("x_eof_range", (1, 10))[1],
             y_ceiling=(cpt_args or {}).get("y_eof_range", (1, 10))[1],
+            standardize=bool((cpt_args or {}).get("standardize", False)),
+            lat_weights=(cpt_args or {}).get("lat_weights", "sqrt_cos"),
         )
+        # Full-record counts: used for the issued forecast (m_full below).
+        xe, ye, cc = select_modes_north(hcst_sliced, obs_sliced, **_north_kw)
         method_kwargs.update({
             "x_eof_modes": xe,
             "y_eof_modes": ye,
             "cca_modes": cc,
         })
+        _north_full = (xe, ye, cc)
+        _north_folds = []          # per-fold re-selection, filled in the CV loop
     elif method == "cca" and mode_sel in ("auto", "cpt"):
         if cv_scheme not in ("loyo", "loyo_cyclic"):
             raise ValueError(
@@ -629,6 +637,9 @@ def _per_model_cv(hcst, fcst, obs_sliced, *, method, cv_scheme, cpt_args,
         method_kwargs["_mode_selection_goodness"] = goodness
 
     mode_selection_goodness = method_kwargs.pop("_mode_selection_goodness", None)
+    _north_per_fold = method == "cca" and mode_sel == "north"
+    if not _north_per_fold:
+        _north_full, _north_folds = None, None
     fold_predictions = []
     leverages = [] if hasattr(method_cls, "leverage") else None
     can_leverage = leverages is not None
@@ -637,7 +648,17 @@ def _per_model_cv(hcst, fcst, obs_sliced, *, method, cv_scheme, cpt_args,
         from ..tercile import cpt_empirical_transform
     for train_years, test in fold_iter:
         test_years = test if isinstance(test, list) else [test]
-        m = method_cls(**method_kwargs)
+        fold_kwargs = method_kwargs
+        if _north_per_fold:
+            # Re-select on the fold's TRAINING years only, so the held-out
+            # year never informs its own mode count.
+            fxe, fye, fcc = select_modes_north(
+                hcst_sliced.sel(year=train_years), obs_sliced.sel(year=train_years),
+                **_north_kw)
+            fold_kwargs = dict(method_kwargs, x_eof_modes=fxe, y_eof_modes=fye,
+                               cca_modes=fcc)
+            _north_folds.append((list(test_years), (fxe, fye, fcc)))
+        m = method_cls(**fold_kwargs)
         if fold_obs_raw is not None:
             # CPT re-transforms each fold's training sample by itself, without
             # the self-tie (distribs.F95 gaussian, no-ref branch) — the fold's
@@ -647,9 +668,9 @@ def _per_model_cv(hcst, fcst, obs_sliced, *, method, cv_scheme, cpt_args,
         else:
             train_obs = obs_sliced.sel(year=train_years)
         m.fit(hcst_sliced.sel(year=train_years), train_obs,
-              **method_kwargs)
+              **fold_kwargs)
         test_forecast = hcst_sliced.sel(year=test_years)
-        pred = m.predict(test_forecast, **method_kwargs)
+        pred = m.predict(test_forecast, **fold_kwargs)
         # `predict` may return a result with the year dim or with year squeezed
         # out depending on the method. Normalize to (year, lat, lon).
         if "year" not in pred.dims:
@@ -673,6 +694,9 @@ def _per_model_cv(hcst, fcst, obs_sliced, *, method, cv_scheme, cpt_args,
     m_full.fit(hcst_sliced, obs_sliced, **method_kwargs)
     if mode_selection_goodness is not None:
         m_full.mode_selection_goodness_ = mode_selection_goodness
+    if _north_per_fold:
+        m_full.mode_selection_north_ = _north_full
+        m_full.mode_selection_north_folds_ = _north_folds
 
     if fcst is not None:
         # Caller-provided forecast slice.
