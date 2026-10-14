@@ -431,7 +431,8 @@ def _capped_mode_ranges(x_eof_range, y_eof_range, cca_range, n_years, window):
     return _cap(x_eof_range), _cap(y_eof_range), _cap(cca_range)
 
 
-def _north_modes(field, ceiling, min_frac_of_mean=1.0):
+def _north_modes(field, ceiling, min_frac_of_mean=1.0, *,
+                 standardize=False, lat_weights="sqrt_cos"):
     """Retained EOF count for a (year, lat, lon[, member]) field by eigenvalue test.
 
     Reproduces ACMAD's ``compute_scree_north_test.gs`` (the CPT.x dry-run
@@ -442,18 +443,30 @@ def _north_modes(field, ceiling, min_frac_of_mean=1.0):
     error ``dlambda = lambda * sqrt(2/N)`` (North et al. 1982, MWR 110, 699-706).
     Capped at ``ceiling`` and at least 1.
 
-    Anomaly centering and ``sqrt(cos(lat))`` weighting follow the exact
-    conventions of ``_svd_pca`` / ``CCAMethod.fit``, so the eigenvalues examined
-    here are the ones the CCA fit would produce. A ``member`` dim is reduced by
+    Centering, optional per-column standardisation (``standardize``, ddof=1,
+    the correlation-matrix EOFs CPT uses) and latitude weighting
+    (``lat_weights="cpt"`` for CPT's integrated-cosine band weights, anything
+    else for ``sqrt(cos(lat))``) follow ``CCAMethod.fit`` exactly — pass the
+    same values the CCA will be fit with, or the eigenvalues examined here are
+    for a different problem than the one the CCA solves. A ``member`` dim is reduced by
     its mean first (matching what the CCA is fit on). Cost: one SVD.
     """
     da = field.mean("member") if "member" in field.dims else field
     da = da.transpose("year", "lat", "lon")
     n = da.sizes["year"]
-    w = np.sqrt(np.cos(np.deg2rad(np.repeat(da.lat.values, da.sizes["lon"]))))
+    if lat_weights == "cpt":
+        w_row = cpt_latitude_weights(da.lat.values)
+    else:
+        w_row = np.sqrt(np.cos(np.deg2rad(da.lat.values)))
+    w = np.repeat(w_row, da.sizes["lon"])
     a = da.values.reshape(n, -1)
     good = np.all(np.isfinite(a), axis=0)
-    a = (a[:, good] - a[:, good].mean(0)) * w[good]
+    a = a[:, good] - a[:, good].mean(0)
+    if standardize and n > 1:
+        sd = a.std(axis=0, ddof=1)
+        sd[sd < 1e-20] = 1.0
+        a = a / sd
+    a = a * w[good]
     lam = np.linalg.svd(a, compute_uv=False) ** 2
     lam = lam[lam > 0]
     if lam.size == 0:
@@ -470,7 +483,8 @@ def _north_modes(field, ceiling, min_frac_of_mean=1.0):
     return max(1, min(keep, ceiling))
 
 
-def select_modes_north(gcm, obs, x_ceiling=10, y_ceiling=10, min_frac_of_mean=1.0):
+def select_modes_north(gcm, obs, x_ceiling=10, y_ceiling=10, min_frac_of_mean=1.0,
+                       *, standardize=False, lat_weights="sqrt_cos"):
     """Eigenvalue-spectrum (Scree + North's rule) mode selection.
 
     Selects the EOF truncations *before any skill measurement*, the way CPT.x's
@@ -489,8 +503,9 @@ def select_modes_north(gcm, obs, x_ceiling=10, y_ceiling=10, min_frac_of_mean=1.
 
     Returns ``(x_eof, y_eof, cca)`` fixed mode counts.
     """
-    x_eof = _north_modes(gcm, x_ceiling, min_frac_of_mean)
-    y_eof = _north_modes(obs, y_ceiling, min_frac_of_mean)
+    kw = dict(standardize=standardize, lat_weights=lat_weights)
+    x_eof = _north_modes(gcm, x_ceiling, min_frac_of_mean, **kw)
+    y_eof = _north_modes(obs, y_ceiling, min_frac_of_mean, **kw)
     return x_eof, y_eof, min(x_eof, y_eof)
 
 
