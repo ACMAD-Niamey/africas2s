@@ -41,10 +41,10 @@
 # `fetch()` over every provider, returning normalised xarray with
 # `lat`/`lon`/`year`/`member` coordinates and known units); `africas2s` is the
 # statistics and plotting layer. This notebook defines **no plotting functions
-# and no colour ramps** of its own — # every map is drawn through the packaged
+# and no colour ramps** of its own — every map is drawn through the packaged
 # RCC display styles.
 #
-# # The C3S seasonal datasets are served by the Copernicus CDS
+# The C3S seasonal datasets are served by the Copernicus CDS
 # (`https://cds.climate.copernicus.eu/api`); make sure your `~/.cdsapirc` points
 # there (see the README prerequisites).
 
@@ -87,7 +87,7 @@ FIG.mkdir(parents=True, exist_ok=True)
 #
 # The forecast: **OND 2026 from the September 2026 initialisation**, over the
 # IGAD domain ICPAC serves. The country list is the member states: Djibouti, Eritrea, Ethiopia, Kenya, Somalia, South Sudan,
-# Sudan and Uganda # — not Tanzania, Rwanda or Burundi, which a wider "Greater Horn" box
+# Sudan and Uganda — not Tanzania, Rwanda or Burundi, which a wider "Greater Horn" box
 # often includes but which are not IGAD members. South Sudan appears twice because Natural Earth
 # and the WMO spell it differently, and the country clip matches on any of the
 # spellings. Two working resolutions run through the whole notebook: **0.5°**
@@ -109,7 +109,7 @@ FIG.mkdir(parents=True, exist_ok=True)
 #
 # *The dry mask is a parameter.* A cell is greyed where the season contributes
 # less than `DRY_SHARE` of its annual rainfall — ICPAC's own seasonal-share
-# rule. # A 15 % threshold is used here, in the style of ICPAC's seasonal
+# rule. A 15 % threshold is used here, in the style of ICPAC's seasonal
 # products; change
 # the one number below and every map follows. It is a display choice applied
 # by the style, never a change to the calculation. For OND it greys less of
@@ -230,7 +230,7 @@ for w in WINDOWS:
 #
 # CHIRPS v2 monthly rainfall, averaged over each forecast window for every
 # year 1982–2020, on both working grids (`seasonal="mean"` gives the mean
-# daily rate for the season; `boundary="cover"` keeps every cell the region
+# monthly total for the season, in mm/month; `boundary="cover"` keeps every cell the region
 # touches). This is the predictand every CCA is trained against and the record
 # the analogue section reads from. The NDJ and DJF climatologies wrap the year
 # boundary exactly as described in §1.1 — each year's value is the mean over
@@ -294,7 +294,7 @@ plt.show()
 # working grids, so the 0.5° and 10 km maps are greyed identically.
 #
 # The **style** is `TercileStyle.named("icpac")` — ICPAC's own colour
-# standard, # with its rainfall palette and 40–100 % probability bands,
+# standard, with its rainfall palette and 40–100 % probability bands,
 # modelled on the ICPAC GHACOF rainfall maps. It is also the packaged house
 # default across this notebook family, so here the RCC's own convention and
 # the family standard are the same thing. The style carries the IGAD country
@@ -302,7 +302,8 @@ plt.show()
 # identically.
 
 # %%
-season_total_lo = SEASON_DAYS * obs_lo[SEASON].mean("year")
+_per_day = str(obs_lo[SEASON].attrs.get("units", "")).lower().startswith("mm/d")   # CHIRPS monthly arrives as mm/month
+season_total_lo = (SEASON_DAYS if _per_day else 3) * obs_lo[SEASON].mean("year")
 ond_share = season_total_lo / annual_lo.interp(lat=season_total_lo.lat,
                                                lon=season_total_lo.lon)
 dry_lo = ond_share < DRY_SHARE                               # THE dry mask (0.5°)
@@ -599,7 +600,7 @@ plt.show()
 # **last season fully observed before the forecast was issued**, and every
 # candidate year is cut at the same relative point. That keeps the comparison
 # issuance-anchored and leak-free, and it is always twelve points — which is
-# what keeps the correlation meaningful. # (A shorter window — only the seasons elapsed in the target's own calendar
+# what keeps the correlation meaningful. (A shorter window — only the seasons elapsed in the target's own calendar
 # year — can be as few as five points, too few for a correlation to separate
 # candidates.)
 

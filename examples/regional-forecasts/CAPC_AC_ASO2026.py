@@ -37,10 +37,10 @@
 # `fetch()` over every provider, returning normalised xarray with
 # `lat`/`lon`/`year`/`member` coordinates and known units); `africas2s` is the
 # statistics and plotting layer. This notebook defines **no plotting functions
-# and no colour ramps** of its own — # every map is drawn through the packaged
+# and no colour ramps** of its own — every map is drawn through the packaged
 # RCC display styles.
 #
-# # The C3S seasonal datasets are served by the Copernicus CDS
+# The C3S seasonal datasets are served by the Copernicus CDS
 # (`https://cds.climate.copernicus.eu/api`); make sure your `~/.cdsapirc` points
 # there (see the README prerequisites).
 
@@ -95,7 +95,7 @@ FIG.mkdir(parents=True, exist_ok=True)
 #
 # *The dry mask is a parameter.* A cell is greyed where the season contributes
 # less than `DRY_SHARE` of its annual rainfall — ICPAC's seasonal-share rule,
-# inherited by the whole notebook family. # A 15 % threshold is used here, in the style of ICPAC's seasonal
+# inherited by the whole notebook family. A 15 % threshold is used here, in the style of ICPAC's seasonal
 # products; change the one number below and every map
 # follows. It is a display choice applied by the style, never a change to the
 # calculation — and for ASO it removes little or nothing of the ECCAS domain
@@ -212,7 +212,7 @@ for w in WINDOWS:
 #
 # CHIRPS v2 monthly rainfall, averaged over each forecast window for every
 # year 1982–2020, on both working grids (`seasonal="mean"` gives the mean
-# daily rate for the season; `boundary="cover"` keeps every cell the region
+# monthly total for the season, in mm/month; `boundary="cover"` keeps every cell the region
 # touches). This is the predictand every CCA is trained against and the record
 # the analogue section reads from. The annual total (same grid, averaged over
 # years) is what the dry-season share is measured against.
@@ -274,7 +274,7 @@ plt.show()
 # working grids, so the 0.5° and 10 km maps are greyed identically.
 #
 # The **style** is `TercileStyle.named("noaa-cpc")` — the NOAA CPC seasonal
-# # tercile legend and white-when-contested display rule, the convention closest
+# tercile legend and white-when-contested display rule, the convention closest
 # to CAPC-AC's published outlooks, carrying the ECCAS country clip, the lakes, and the
 # dry mask, so every map below is masked and coloured identically. (The
 # packaged house default across the RCC notebook family is
@@ -282,7 +282,8 @@ plt.show()
 # the closest to CAPC-AC's published outlooks.)
 
 # %%
-season_total_lo = SEASON_DAYS * obs_lo[SEASON].mean("year")
+_per_day = str(obs_lo[SEASON].attrs.get("units", "")).lower().startswith("mm/d")   # CHIRPS monthly arrives as mm/month
+season_total_lo = (SEASON_DAYS if _per_day else 3) * obs_lo[SEASON].mean("year")
 aso_share = season_total_lo / annual_lo.interp(lat=season_total_lo.lat,
                                                lon=season_total_lo.lon)
 dry_lo = aso_share < DRY_SHARE                               # THE dry mask (0.5°)
@@ -578,7 +579,7 @@ plt.show()
 #
 # Two properties make this the right window. It is **issuance-anchored and
 # leak-free** — nothing after June 2026 enters the ranking. And it is **always
-# twelve points**, which keeps the correlation meaningful: # a window of only the
+# twelve points**, which keeps the correlation meaningful: a window of only the
 # seasons elapsed in the target's own calendar year can be as few as five
 # points, too few for a correlation to separate candidates.
 
@@ -772,7 +773,7 @@ plt.show()
 #
 # When the season *starts* matters as much as how much falls. Onset is
 # computed from the **daily** C3S forecasts with `africas2s.aggregations`,
-# # using the library's default onset criterion (the ICPAC/GHACOF definition):
+# using the library's default onset criterion (the ICPAC/GHACOF definition):
 # **20 mm accumulated over 3 days**, rejected if a
 # 7-day dry spell follows within the next 21 days. The search window is the
 # season's three months plus the following month — **1 August to 30 November**
