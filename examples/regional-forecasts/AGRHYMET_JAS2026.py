@@ -38,10 +38,10 @@
 # `fetch()` over every provider, returning normalised xarray with
 # `lat`/`lon`/`year`/`member` coordinates and known units); `africas2s` is the
 # statistics and plotting layer. This notebook defines **no plotting functions
-# and no colour ramps** of its own — # every map is drawn through the packaged
+# and no colour ramps** of its own — every map is drawn through the packaged
 # RCC display styles.
 #
-# # The C3S seasonal datasets are served by the Copernicus CDS
+# The C3S seasonal datasets are served by the Copernicus CDS
 # (`https://cds.climate.copernicus.eu/api`); make sure your `~/.cdsapirc` points
 # there (see the README prerequisites).
 
@@ -98,7 +98,7 @@ FIG.mkdir(parents=True, exist_ok=True)
 #
 # *The dry mask is a parameter.* A cell is greyed where the season contributes
 # less than `DRY_SHARE` of its annual rainfall — ICPAC's seasonal-share rule,
-# inherited by the whole notebook family. # A 15 % threshold is used here, in the style of ICPAC's seasonal
+# inherited by the whole notebook family. A 15 % threshold is used here, in the style of ICPAC's seasonal
 # products; change the one number below and every map
 # follows. It is a display choice applied by the style, never a change to the
 # calculation — and for JAS it removes little of the West African domain
@@ -218,7 +218,7 @@ for w in WINDOWS:
 #
 # CHIRPS v2 monthly rainfall, averaged over each forecast window for every
 # year 1982–2020, on both working grids (`seasonal="mean"` gives the mean
-# daily rate for the season; `boundary="cover"` keeps every cell the region
+# monthly total for the season, in mm/month; `boundary="cover"` keeps every cell the region
 # touches). This is the predictand every CCA is trained against and the record
 # the analogue section reads from. The annual total (same grid, averaged over
 # years) is what the dry-season share is measured against.
@@ -287,7 +287,8 @@ plt.show()
 # continental production look.)
 
 # %%
-season_total_lo = SEASON_DAYS * obs_lo[SEASON].mean("year")
+_per_day = str(obs_lo[SEASON].attrs.get("units", "")).lower().startswith("mm/d")   # CHIRPS monthly arrives as mm/month
+season_total_lo = (SEASON_DAYS if _per_day else 3) * obs_lo[SEASON].mean("year")
 jas_share = season_total_lo / annual_lo.interp(lat=season_total_lo.lat,
                                                lon=season_total_lo.lon)
 dry_lo = jas_share < DRY_SHARE                               # THE dry mask (0.5°)
@@ -582,7 +583,7 @@ plt.show()
 # **last season fully observed before the forecast was issued**, and every
 # candidate year is cut at the same relative point. That keeps the comparison
 # issuance-anchored and leak-free, and it is always twelve points — which is
-# what keeps the correlation meaningful. # (A shorter window — only the seasons elapsed in the target's own calendar
+# what keeps the correlation meaningful. (A shorter window — only the seasons elapsed in the target's own calendar
 # year — can be as few as five points, too few for a correlation to separate
 # candidates.)
 

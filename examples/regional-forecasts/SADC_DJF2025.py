@@ -37,10 +37,10 @@
 # `fetch()` over every provider, returning normalised xarray with
 # `lat`/`lon`/`year`/`member` coordinates and known units); `africas2s` is the
 # statistics and plotting layer. This notebook defines **no plotting functions
-# and no colour ramps** of its own — # every map is drawn through the packaged
+# and no colour ramps** of its own — every map is drawn through the packaged
 # RCC display styles.
 #
-# # The C3S seasonal datasets are served by the Copernicus CDS
+# The C3S seasonal datasets are served by the Copernicus CDS
 # (`https://cds.climate.copernicus.eu/api`); make sure your `~/.cdsapirc` points
 # there (see the README prerequisites).
 
@@ -90,7 +90,7 @@ FIG.mkdir(parents=True, exist_ok=True)
 # through the whole notebook: **0.5°** — the operational grid the RCC products
 # use — and **0.1° (~10 km)**, the high-resolution leg.
 #
-# # The example uses the November 2025 issuance, the most recent complete DJF
+# The example uses the November 2025 issuance, the most recent complete DJF
 # cycle at the time of writing; set `INIT_MONTH` and `YEAR` to re-run it for a
 # later cycle. Three forecast **windows** slide forward
 # from it: DJF 2025/26, JFM 2026 and FMA 2026, every one from the same
@@ -111,7 +111,7 @@ FIG.mkdir(parents=True, exist_ok=True)
 #
 # *The dry mask is a parameter.* A cell is greyed where the season contributes
 # less than `DRY_SHARE` of its annual rainfall — ICPAC's seasonal-share rule,
-# inherited by the whole notebook family. # A 15 % threshold is used here, in the style of ICPAC's seasonal
+# inherited by the whole notebook family. A 15 % threshold is used here, in the style of ICPAC's seasonal
 # products; change the one number below and every map
 # follows. It is a display choice applied by the style, never a change to the
 # calculation — and for DJF it matters here: the south-western Cape takes its
@@ -300,9 +300,9 @@ plt.show()
 # #### 1.5 The dry mask and the display standard
 #
 # The mask compares the DJF climatological total against the annual total.
-# # The catalogue serves CHIRPS v2 monthly as a mean daily rate (mm/day), so the
-# season total is the number of season days times the mean rate; the line below
-# also accepts monthly totals, should a different source serve them. The mask is derived **once, at the
+# The catalogue serves CHIRPS v2 monthly as monthly totals (mm/month), so the
+# season total is the number of season months times the mean monthly total; the
+# line below also accepts a daily rate, should a different source serve one. The mask is derived **once, at the
 # 0.5° operational grid**, and painted onto both working grids, so the 0.5°
 # and 10 km maps are greyed identically.
 #
@@ -612,7 +612,7 @@ plt.show()
 # **last season fully observed before the forecast was issued**, and every
 # candidate year is cut at the same relative point. That keeps the comparison
 # issuance-anchored and leak-free, and it is always twelve points — which is
-# what keeps the correlation meaningful. # (A shorter window — only the seasons elapsed in the target's own calendar
+# what keeps the correlation meaningful. (A shorter window — only the seasons elapsed in the target's own calendar
 # year — can be as few as five points, too few for a correlation to separate
 # candidates.)
 
@@ -803,7 +803,7 @@ plt.show()
 #
 # When the season *starts* matters as much as how much falls. Onset is
 # computed from the **daily** C3S forecasts with `africas2s.aggregations`,
-# # using the library's default onset criterion (the ICPAC/GHACOF definition):
+# using the library's default onset criterion (the ICPAC/GHACOF definition):
 # **20 mm accumulated over 3 days**, rejected if a
 # 7-day dry spell follows within the next 21 days. The search window is the
 # season's three months plus the following month — **1 December to 31 March**

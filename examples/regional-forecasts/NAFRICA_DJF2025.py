@@ -26,7 +26,7 @@
 # October–April along the Maghreb coast and the Atlas, and December–February is
 # its core — which makes DJF the region's best-match 3-month outlook window.
 # The three forecast windows slide forward from the season: DJF 2025/26, JFM
-# and FMA 2026, all from the same 1 November initialisation. # November 2025 is
+# and FMA 2026, all from the same 1 November initialisation. November 2025 is
 # the most recent complete cycle for this season at the time of writing; change
 # `INIT_MONTH` to re-run a later one.
 
@@ -39,10 +39,10 @@
 # `fetch()` over every provider, returning normalised xarray with
 # `lat`/`lon`/`year`/`member` coordinates and known units); `africas2s` is the
 # statistics and plotting layer. This notebook defines **no plotting functions
-# and no colour ramps** of its own — # every map is drawn through the packaged
+# and no colour ramps** of its own — every map is drawn through the packaged
 # RCC display styles.
 #
-# # The C3S seasonal datasets are served by the Copernicus CDS
+# The C3S seasonal datasets are served by the Copernicus CDS
 # (`https://cds.climate.copernicus.eu/api`); make sure your `~/.cdsapirc` points
 # there (see the README prerequisites).
 
@@ -108,7 +108,7 @@ FIG.mkdir(parents=True, exist_ok=True)
 #
 # *The dry mask is a parameter.* A cell is greyed where the season contributes
 # less than `DRY_SHARE` of its annual rainfall — ICPAC's seasonal-share rule,
-# inherited by the whole notebook family. # A 15 % threshold is used here, in the style of ICPAC's seasonal
+# inherited by the whole notebook family. A 15 % threshold is used here, in the style of ICPAC's seasonal
 # products; change the one number below and every map
 # follows. It is a display choice applied by the style, never a change to the
 # calculation. For this domain, expect the mask to remove a **large share of
@@ -244,7 +244,7 @@ for w in WINDOWS:
 #
 # CHIRPS v2 monthly rainfall, averaged over each forecast window for every
 # year 1982–2020, on both working grids (`seasonal="mean"` gives the mean
-# daily rate for the season; `boundary="cover"` keeps every cell the region
+# monthly total for the season, in mm/month; `boundary="cover"` keeps every cell the region
 # touches). DJF years are wraparound years — the 2020 entry is Dec 2020 –
 # Feb 2021 — labelled by the starting December, as §1.1 describes; the fetch
 # therefore runs **through 2021**, so the last wraparound season is complete
@@ -324,7 +324,8 @@ plt.show()
 # masquerade as signal.
 
 # %%
-season_total_lo = SEASON_DAYS * obs_lo[SEASON].mean("year")
+_per_day = str(obs_lo[SEASON].attrs.get("units", "")).lower().startswith("mm/d")   # CHIRPS monthly arrives as mm/month
+season_total_lo = (SEASON_DAYS if _per_day else 3) * obs_lo[SEASON].mean("year")
 djf_share = season_total_lo / annual_lo.interp(lat=season_total_lo.lat,
                                                lon=season_total_lo.lon)
 dry_lo = djf_share < DRY_SHARE                               # THE dry mask (0.5°)
@@ -605,7 +606,7 @@ plt.show()
 # ### 4. Analogue years
 #
 # An independent check on the objective forecast: which past years' El
-# Niño/La Niña evolution most resembles the run-up to this season? # A
+# Niño/La Niña evolution most resembles the run-up to this season? A
 # caveat before reading these maps: **over North Africa ENSO is a weaker
 # rainfall driver than the North Atlantic Oscillation**, whose phase sets the
 # winter storm track into the Maghreb — the ENSO analogue set is shown here
@@ -625,7 +626,7 @@ plt.show()
 # **last season fully observed before the forecast was issued**, and every
 # candidate year is cut at the same relative point. That keeps the comparison
 # issuance-anchored and leak-free, and it is always twelve points — which is
-# what keeps the correlation meaningful. # (A shorter window — only the seasons elapsed in the target's own calendar
+# what keeps the correlation meaningful. (A shorter window — only the seasons elapsed in the target's own calendar
 # year — can be as few as five points, too few for a correlation to separate
 # candidates.)
 
@@ -816,7 +817,7 @@ plt.show()
 #
 # When the season *starts* matters as much as how much falls. Onset is
 # computed from the **daily** C3S forecasts with `africas2s.aggregations`,
-# # using the library's default onset criterion (the ICPAC/GHACOF definition):
+# using the library's default onset criterion (the ICPAC/GHACOF definition):
 # **20 mm accumulated over 3 days**, rejected if a
 # 7-day dry spell follows within the next 21 days. The search window is the
 # season's three months plus the following month — **1 December 2025 to
