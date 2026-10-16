@@ -578,7 +578,7 @@ plt.show()
 # summers wet — alongside the tropical Atlantic and Mediterranean, so the
 # Pacific evolution is a natural analogue axis here.)
 #
-# # **The window is the twelve seasons ending at issuance.** Each year's
+# **The window is the twelve seasons ending at issuance.** Each year's
 # "evolution" is the run of twelve overlapping 3-month means that ends with the
 # **last season fully observed before the forecast was issued**, and every
 # candidate year is cut at the same relative point. That keeps the comparison
