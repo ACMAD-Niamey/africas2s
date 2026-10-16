@@ -222,10 +222,18 @@ def _plot_grid(entries, *, emphasize=None, style=None, ncols=3, skill_mask=None,
                smooth=False, variable_kind="precip", legend=True,
                legend_detailed=False, cmap="RdBu_r", levels=None, vmin=None,
                vmax=None, center=None, extend="both", cbar_label=None,
-               scale=None, suptitle=None, panel_size=(4.2, 3.9), figsize=None):
+               scale=None, suptitle=None, panel_size=(4.2, 3.9), figsize=None,
+               legend_fontsize=None):
     require_optional("matplotlib", _HINT)
     plt = importlib.import_module("matplotlib.pyplot")
     Patch = importlib.import_module("matplotlib.patches").Patch
+
+    # Text scales with the panel: the default 4.2-inch panel keeps the 8 pt
+    # chips and legend; a 10-inch panel gets ~16 pt. Otherwise a figure built
+    # for print carries a legend sized for a thumbnail.
+    _k = max(1.0, min(2.4, panel_size[0] / 4.2))
+    _leg_fs = legend_fontsize if legend_fontsize is not None else round(8 * _k)
+    _chip_fs = round(8 * _k)
 
     if scale is not None:
         if levels is not None or vmin is not None or vmax is not None or center is not None:
@@ -303,7 +311,7 @@ def _plot_grid(entries, *, emphasize=None, style=None, ncols=3, skill_mask=None,
                 field_mappable = im
         _declutter(ax, is_geo)
         bold = emphasize is not None and i == emphasize
-        _panel_chip(ax, title, bold=bold)
+        _panel_chip(ax, title, bold=bold, fontsize=_chip_fs)
         if bold:
             for spine in ax.spines.values():
                 spine.set_linewidth(1.8)
@@ -319,7 +327,8 @@ def _plot_grid(entries, *, emphasize=None, style=None, ncols=3, skill_mask=None,
         cb = fig.colorbar(field_mappable, ax=list(flat[:n]),
                           orientation="horizontal",
                           shrink=0.8, pad=0.02, aspect=45, label=cbar_label)
-        cb.ax.tick_params(labelsize=8)
+        cb.ax.tick_params(labelsize=_leg_fs)
+        cb.set_label(cbar_label, fontsize=_leg_fs)
 
     if legend and any_tercile:
         handles = tercile_legend_handles(style, variable_kind=variable_kind,
@@ -337,14 +346,14 @@ def _plot_grid(entries, *, emphasize=None, style=None, ncols=3, skill_mask=None,
         else:
             leg_ncol = min(len(handles), 4)
         fig.legend(handles=handles, loc="outside lower center", ncol=leg_ncol,
-                   frameon=True, framealpha=0.9, fontsize=8,
+                   frameon=True, framealpha=0.9, fontsize=_leg_fs,
                    title="Probability of dominant tercile"
                          if style is not None else
                          "Dominant tercile  (intensity = confidence)",
-                   title_fontsize=8)
+                   title_fontsize=_leg_fs)
 
     if suptitle:
-        fig.suptitle(suptitle, fontsize=13, fontweight="bold")
+        fig.suptitle(suptitle, fontsize=round(13 * _k), fontweight="bold")
     return fig
 
 
@@ -352,7 +361,7 @@ def plot_matrix(panels, *, style=None, ncols=3, skill_mask=None, smooth=False,
                 variable_kind="precip", legend=True, legend_detailed=False,
                 cmap="RdBu_r", levels=None, vmin=None, vmax=None, center=None,
                 extend="both", cbar_label=None, scale=None, suptitle=None,
-                panel_size=(4.2, 3.9), figsize=None):
+                panel_size=(4.2, 3.9), figsize=None, legend_fontsize=None):
     """Grid of forecast maps — tercile, continuous, or a mix — with shared styling.
 
     The one-call version of the per-model figure grids every replication
@@ -402,6 +411,9 @@ def plot_matrix(panels, *, style=None, ncols=3, skill_mask=None, smooth=False,
         Bold figure title.
     panel_size : (float, float)
         Per-panel size in inches; ``figsize`` overrides the computed size.
+    legend_fontsize : float, optional
+        Legend, colorbar and chip text size. Default scales with the panel
+        width (8 pt at the default 4.2 in, up to ~19 pt at 10 in and above).
 
     Returns
     -------
@@ -413,7 +425,8 @@ def plot_matrix(panels, *, style=None, ncols=3, skill_mask=None, smooth=False,
                       legend_detailed=legend_detailed, cmap=cmap, levels=levels,
                       vmin=vmin, vmax=vmax, center=center, extend=extend,
                       cbar_label=cbar_label, scale=scale, suptitle=suptitle,
-                      panel_size=panel_size, figsize=figsize)
+                      panel_size=panel_size, figsize=figsize,
+                      legend_fontsize=legend_fontsize)
 
 
 def plot_components_objective(components, objective, *, objective_label="Objective",
