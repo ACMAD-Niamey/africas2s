@@ -1,11 +1,11 @@
 # %% [markdown]
 # <p><img src="assets/logos/acmad.png" alt="ACMAD — African Centre of Meteorological Applications for Development, which serves the NA-RCC / PRESANORD products" title="ACMAD — African Centre of Meteorological Applications for Development, which serves the NA-RCC / PRESANORD products" height="52"></p>
 #
-# # NA-RCC DJF 2025/26 — North Africa seasonal forecast on the ACCORD stack
+# # NA-RCC DJF 2025/26 — North Africa seasonal forecast with acmadDL and africas2s
 #
 # The North Africa RCC (NA-RCC, serving the Maghreb–Sahara region and the
 # **PRESANORD** forum) December–February 2025/26 rainfall outlook, built end to
-# end on the ACCORD stack — [`acmadDL`](https://github.com/ACMAD-Niamey/acmadDL)
+# end with [`acmadDL`](https://github.com/ACMAD-Niamey/acmadDL)
 # for data, [`africas2s`](https://github.com/ACMAD-Niamey/africas2s) for
 # statistics and maps. This is one of five regional demonstration notebooks,
 # one per continental RCC, all sharing the same structure:
@@ -26,9 +26,9 @@
 # October–April along the Maghreb coast and the Atlas, and December–February is
 # its core — which makes DJF the region's best-match 3-month outlook window.
 # The three forecast windows slide forward from the season: DJF 2025/26, JFM
-# and FMA 2026, all from the same 1 November initialisation. November 2025 is
-# used because it is the most recent **complete** forecast cycle for this
-# season (the November 2026 initialisation has not yet happened).
+# and FMA 2026, all from the same 1 November initialisation. # November 2025 is
+# the most recent complete cycle for this season at the time of writing; change
+# `INIT_MONTH` to re-run a later one.
 
 # %% [markdown]
 # ### 0. Preliminaries
@@ -39,18 +39,17 @@
 # `fetch()` over every provider, returning normalised xarray with
 # `lat`/`lon`/`year`/`member` coordinates and known units); `africas2s` is the
 # statistics and plotting layer. This notebook defines **no plotting functions
-# and no colour ramps** of its own — every map is drawn through the packaged
-# RCC framework display standards.
+# and no colour ramps** of its own — # every map is drawn through the packaged
+# RCC display styles.
 #
-# The first four lines after the imports are the **CDS endpoint guard**: this
-# machine's `~/.cdsapirc` points at ECMWF's ECDS, but the C3S seasonal
-# datasets live on the Copernicus CDS — the guard pins the CDS URL and reads
-# the Copernicus key from its backup file, so every C3S fetch lands on the
-# right endpoint.
+# # The C3S seasonal datasets are served by the Copernicus CDS
+# (`https://cds.climate.copernicus.eu/api`); make sure your `~/.cdsapirc` points
+# there (see the README prerequisites).
 
 # %%
 import os
 import warnings
+warnings.filterwarnings("ignore", message="Degrees of freedom")
 import datetime as dt
 from dataclasses import replace
 from pathlib import Path
@@ -61,11 +60,6 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 
 os.environ.setdefault("CDSAPI_URL", "https://cds.climate.copernicus.eu/api")
-if "CDSAPI_KEY" not in os.environ:
-    _bak = Path.home() / ".cdsapirc.copernicus.bak"
-    os.environ["CDSAPI_KEY"] = [l.split(":", 1)[1].strip()
-                                for l in _bak.read_text().splitlines()
-                                if l.startswith("key")][0]
 
 import acmaddl
 import africas2s
@@ -90,7 +84,7 @@ FIG.mkdir(parents=True, exist_ok=True)
 # #### 1.1 Parameters
 #
 # The forecast: **DJF 2025/26 from the November 2025 initialisation**, over
-# the NA-RCC domain. Membership comes from the WP1 RCC directory: Algeria,
+# the NA-RCC domain. The country list is the member states: Algeria,
 # Egypt, Libya, Mauritania, Morocco, Tunisia and Western Sahara — the last
 # listed twice because Natural Earth spells it "W. Sahara", and the country
 # clip matches on any of the spellings. Two working resolutions run through
@@ -114,13 +108,13 @@ FIG.mkdir(parents=True, exist_ok=True)
 #
 # *The dry mask is a parameter.* A cell is greyed where the season contributes
 # less than `DRY_SHARE` of its annual rainfall — ICPAC's seasonal-share rule,
-# inherited by the whole notebook family. ICPAC uses **15 %** as the standard
-# and occasionally **10 %**; change the one number below and every map
+# inherited by the whole notebook family. # A 15 % threshold is used here, in the style of ICPAC's seasonal
+# products; change the one number below and every map
 # follows. It is a display choice applied by the style, never a change to the
 # calculation. For this domain, expect the mask to remove a **large share of
 # the map**: much of the interior is hyper-arid, and along the Saharan fringe
 # of Mauritania and southern Algeria what little rain falls comes with the
-# summer monsoon, not in winter — §1.4 prints the count. The winter-wet
+# summer monsoon, not in winter — §1.5 prints the count. The winter-wet
 # Mediterranean and Atlantic margins (the Maghreb coast, the Atlas, the
 # Cyrenaican and Egyptian coastal strips) are where DJF is the rainy season
 # and where the forecast carries its meaning.
@@ -149,7 +143,7 @@ WIN_LABEL  = {"DJF": "DJF 2025/26", "JFM": "JFM 2026", "FMA": "FMA 2026"}
 RES_LO = 0.5                              # operational grid
 RES_HI = 0.1                              # high-resolution leg (~10 km)
 
-DRY_SHARE = 0.15                          # ICPAC standard; they occasionally use 0.10
+DRY_SHARE = 0.15                          # share of annual rainfall below which a cell is greyed
 
 # %% [markdown]
 # #### 1.2 The model roster
@@ -175,8 +169,7 @@ DRY_SHARE = 0.15                          # ICPAC standard; they occasionally us
 #   from `c3s/jma` (system 3), with its reforecast clipped to 1993–2020. The
 #   2026-init notebooks in this family use `c3s/jma-cps4` instead.
 #
-# **Why each model shows more than one year range.** This is the question ICPAC
-# asked most often. The windows differ *by design*, for one of two reasons:
+# **Why the hindcast windows differ between models.** They differ *by design*, for one of two reasons:
 # **what the archive holds** — NASA-GEOSS2S's hindcast ends in 2017 and
 # ECMWF's in 2016, so those are hard stops — or **a harmonisation choice**:
 # the roster is floored at **1993**, the year every C3S reforecast begins, so
@@ -356,7 +349,7 @@ print(f"NA-RCC cells (0.5°): {int((~outside).sum())} of {outside.size}; "
 # edges, and the classified field scales (NOAA CPC anomaly, UCSB CHIRPS
 # anomaly and total, ICPAC onset date and spread) with their levels — each
 # carrying the provenance note of the operational product it was sampled from.
-# §1.5 uses `noaa-cpc-anomaly`; §5 uses the two ICPAC onset scales.
+# §1.6 uses `noaa-cpc-anomaly`; §5 uses the two ICPAC onset scales.
 
 # %%
 fig = africas2s.show_schemes()
@@ -418,8 +411,7 @@ plt.show()
 # One CCA runs per model, window and resolution, so each model is calibrated
 # against its own hindcast record (`native_years=True`) and its probabilities
 # are built per model before combining (`probability_aggregation=
-# "cpt_per_model"`). The CPT arguments are the ones the operational products
-# use: 7 X-EOFs, 7 Y-EOFs, 2 CCA modes, a 5-year cross-validation window, no
+# "cpt_per_model"`). The CCA settings follow common CPT practice: 7 X-EOFs, 7 Y-EOFs, 2 CCA modes, a 5-year cross-validation window, no
 # standardisation. Probabilities stay 0–1 throughout, on the integer 0/1/2
 # tercile coordinate `seasonal_mme` returns.
 
@@ -451,9 +443,9 @@ for w in WINDOWS:
 # #### 2.1 The calibrated models, first window
 #
 # The per-model DJF 2025/26 maps at 10 km, after calibration. Comparing these
-# panels with the raw anomalies in §1.5 shows what calibration actually does:
+# panels with the raw anomalies in §1.6 shows what calibration actually does:
 # it keeps the part of a model's signal that has historically tracked observed
-# rainfall and discards the rest, so the maps are quieter and mutually closer.
+# rainfall and discards the rest, so the maps are typically quieter and closer to one another.
 # White cells are where no category reaches the style's display threshold —
 # the forecast there is close to climatology.
 
@@ -613,7 +605,7 @@ plt.show()
 # ### 4. Analogue years
 #
 # An independent check on the objective forecast: which past years' El
-# Niño/La Niña evolution most resembles the run-up to this season? One honest
+# Niño/La Niña evolution most resembles the run-up to this season? # A
 # caveat before reading these maps: **over North Africa ENSO is a weaker
 # rainfall driver than the North Atlantic Oscillation**, whose phase sets the
 # winter storm track into the Maghreb — the ENSO analogue set is shown here
@@ -628,20 +620,14 @@ plt.show()
 # ranking never sees rainfall, only SST, the observed rainfall in the selected
 # years is a genuine out-of-sample check on the outlook above.
 #
-# The target year is **2025** — the init year — and its curve is **truncated
-# at the issuance**: the last 3-month season wholly observed before the
-# 1 November initialisation is ASO, so the later slots are set to NaN and
-# every candidate is scored only on the pre-issuance seasons. No observation
-# from after the forecast was issued leaks into the ranking.
-#
-# **The window is the twelve seasons ending at issuance.** Each year's
+# # **The window is the twelve seasons ending at issuance.** Each year's
 # "evolution" is the run of twelve overlapping 3-month means that ends with the
 # **last season fully observed before the forecast was issued**, and every
 # candidate year is cut at the same relative point. That keeps the comparison
 # issuance-anchored and leak-free, and it is always twelve points — which is
-# what keeps the correlation meaningful. (Scoring the target only on the
-# seasons elapsed in its own calendar year gives as few as five points, over
-# which correlation saturates: dozens of candidate years tie above r = 0.95.)
+# what keeps the correlation meaningful. # (A shorter window — only the seasons elapsed in the target's own calendar
+# year — can be as few as five points, too few for a correlation to separate
+# candidates.)
 
 # %%
 ersst = acmaddl.fetch("obs/ersst-v5", "sst", hindcast=(1981, 2025), verbose=False)["sst"]
@@ -753,7 +739,8 @@ fig.suptitle(f"The ocean state being matched (top, red) and its {N_ANALOGS} "
 plt.savefig(FIG / "09_analogue_sst_patterns.png", dpi=150)
 plt.show()
 
-# %% [markdown]# #### What actually fell in those years — and what we forecast
+# %% [markdown]
+# #### Observed outcomes in the analogue years, beside the objective forecast
 #
 # For each analogue year, the observed rainfall tercile at every cell against
 # the 1991–2020 boundaries. A year either fell in a tercile or it did not — a
@@ -829,7 +816,8 @@ plt.show()
 #
 # When the season *starts* matters as much as how much falls. Onset is
 # computed from the **daily** C3S forecasts with `africas2s.aggregations`,
-# under the GHACOF criterion: **20 mm accumulated over 3 days**, rejected if a
+# # using the library's default onset criterion (the ICPAC/GHACOF definition):
+# **20 mm accumulated over 3 days**, rejected if a
 # 7-day dry spell follows within the next 21 days. The search window is the
 # season's three months plus the following month — **1 December 2025 to
 # 31 March 2026**, a window that itself crosses the year boundary — and the
@@ -853,7 +841,7 @@ plt.show()
 # Sahara the 20 mm/3 d trigger is simply never met in winter — a qualifying
 # onset legitimately does not occur — so expect the coloured cells to hug the
 # Maghreb coast, the Atlas and the Mediterranean fringe, and read the white
-# interior as "no rainy-season onset", which for this domain is the truth.
+# interior as "no rainy-season onset", which is the expected result for this domain.
 
 # %%
 DAILY_MODELS = [("ECMWF", "c3s/ecmwf"), ("Meteo_France", "c3s/meteofrance-daily"),
