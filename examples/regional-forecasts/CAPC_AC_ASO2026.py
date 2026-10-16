@@ -1,11 +1,10 @@
 # %% [markdown]
 # <p><img src="assets/logos/capc-ac.png" alt="CAPC-AC — Centre d'Applications et de Prévisions Climatologiques pour l'Afrique Centrale" title="CAPC-AC — Centre d'Applications et de Prévisions Climatologiques pour l'Afrique Centrale" height="52">&nbsp;&nbsp;&nbsp;<img src="assets/logos/eccas.png" alt="ECCAS / CEEAC" title="ECCAS / CEEAC" height="52"></p>
 #
-# # CAPC-AC ASO 2026 — Central Africa seasonal forecast on the ACCORD stack
+# # CAPC-AC ASO 2026 — Central Africa seasonal forecast with acmadDL and africas2s
 #
 # The Central Africa RCC (CAPC-AC, serving the **ECCAS / CEEAC** region and the
-# PRESAC forum) August–October 2026 rainfall outlook, built end to end on the
-# ACCORD stack — [`acmadDL`](https://github.com/ACMAD-Niamey/acmadDL) for data,
+# PRESAC forum) August–October 2026 rainfall outlook, built end to end with [`acmadDL`](https://github.com/ACMAD-Niamey/acmadDL) for data,
 # [`africas2s`](https://github.com/ACMAD-Niamey/africas2s) for statistics and
 # maps. This is one of five regional demonstration notebooks, one per
 # continental RCC, all sharing the same structure:
@@ -38,18 +37,17 @@
 # `fetch()` over every provider, returning normalised xarray with
 # `lat`/`lon`/`year`/`member` coordinates and known units); `africas2s` is the
 # statistics and plotting layer. This notebook defines **no plotting functions
-# and no colour ramps** of its own — every map is drawn through the packaged
-# RCC framework display standards.
+# and no colour ramps** of its own — # every map is drawn through the packaged
+# RCC display styles.
 #
-# The first four lines after the imports are the **CDS endpoint guard**: this
-# machine's `~/.cdsapirc` points at ECMWF's ECDS, but the C3S seasonal
-# datasets live on the Copernicus CDS — the guard pins the CDS URL and reads
-# the Copernicus key from its backup file, so every C3S fetch lands on the
-# right endpoint.
+# # The C3S seasonal datasets are served by the Copernicus CDS
+# (`https://cds.climate.copernicus.eu/api`); make sure your `~/.cdsapirc` points
+# there (see the README prerequisites).
 
 # %%
 import os
 import warnings
+warnings.filterwarnings("ignore", message="Degrees of freedom")
 import datetime as dt
 from dataclasses import replace
 from pathlib import Path
@@ -60,11 +58,6 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 
 os.environ.setdefault("CDSAPI_URL", "https://cds.climate.copernicus.eu/api")
-if "CDSAPI_KEY" not in os.environ:
-    _bak = Path.home() / ".cdsapirc.copernicus.bak"
-    os.environ["CDSAPI_KEY"] = [l.split(":", 1)[1].strip()
-                                for l in _bak.read_text().splitlines()
-                                if l.startswith("key")][0]
 
 import acmaddl
 import africas2s
@@ -89,8 +82,7 @@ FIG.mkdir(parents=True, exist_ok=True)
 # #### 1.1 Parameters
 #
 # The forecast: **ASO 2026 from the July 2026 initialisation**, over the ECCAS
-# domain CAPC-AC serves. ECCAS membership comes from the WP1 RCC directory
-# (`RCC-ECCAS`) plus Angola and Chad, which the PRESAC-21 communiqué describes
+# domain CAPC-AC serves. The country list is the member states plus Angola and Chad, which the PRESAC-21 communiqué describes
 # as part of the domain; several countries appear twice because Natural Earth
 # and the WMO spell them differently, and the country clip matches on any of
 # the spellings. Two working resolutions run through the whole notebook:
@@ -103,11 +95,11 @@ FIG.mkdir(parents=True, exist_ok=True)
 #
 # *The dry mask is a parameter.* A cell is greyed where the season contributes
 # less than `DRY_SHARE` of its annual rainfall — ICPAC's seasonal-share rule,
-# inherited by the whole notebook family. ICPAC uses **15 %** as the standard
-# and occasionally **10 %**; change the one number below and every map
+# inherited by the whole notebook family. # A 15 % threshold is used here, in the style of ICPAC's seasonal
+# products; change the one number below and every map
 # follows. It is a display choice applied by the style, never a change to the
 # calculation — and for ASO it removes little or nothing of the ECCAS domain
-# (§1.4 prints the count): August–October is rainy season almost everywhere
+# (§1.5 prints the count): August–October is rainy season almost everywhere
 # here, northern Chad included.
 
 # %%
@@ -129,7 +121,7 @@ YEAR         = 2026
 RES_LO = 0.5                              # operational grid
 RES_HI = 0.1                              # high-resolution leg (~10 km)
 
-DRY_SHARE = 0.15                          # ICPAC standard; they occasionally use 0.10
+DRY_SHARE = 0.15                          # share of annual rainfall below which a cell is greyed
 
 # %% [markdown]
 # #### 1.2 The model roster
@@ -154,8 +146,7 @@ DRY_SHARE = 0.15                          # ICPAC standard; they occasionally us
 #   around January 2026; the roster therefore points at `c3s/jma-cps4` for the
 #   2026 initialisations, with the same 1993–2020 reforecast window.
 #
-# **Why each model shows more than one year range.** This is the question ICPAC
-# asked most often. The windows differ *by design*, for one of two reasons:
+# **Why the hindcast windows differ between models.** They differ *by design*, for one of two reasons:
 # **what the archive holds** — NASA-GEOSS2S's hindcast ends in 2017 and
 # ECMWF's in 2016, so those are hard stops — or **a harmonisation choice**:
 # the roster is floored at **1993**, the year every C3S reforecast begins, so
@@ -283,12 +274,12 @@ plt.show()
 # working grids, so the 0.5° and 10 km maps are greyed identically.
 #
 # The **style** is `TercileStyle.named("noaa-cpc")` — the NOAA CPC seasonal
-# tercile legend and white-when-contested display rule that CAPC-AC's own
-# production maps follow, carrying the ECCAS country clip, the lakes, and the
+# # tercile legend and white-when-contested display rule, the convention closest
+# to CAPC-AC's published outlooks, carrying the ECCAS country clip, the lakes, and the
 # dry mask, so every map below is masked and coloured identically. (The
 # packaged house default across the RCC notebook family is
 # `TercileStyle.named("icpac")`; `noaa-cpc` is this notebook's named variant,
-# matching CAPC-AC's existing production look.)
+# the closest to CAPC-AC's published outlooks.)
 
 # %%
 season_total_lo = SEASON_DAYS * obs_lo[SEASON].mean("year")
@@ -316,7 +307,7 @@ print(f"ECCAS cells (0.5°): {int((~outside).sum())} of {outside.size}; "
 # edges, and the classified field scales (NOAA CPC anomaly, UCSB CHIRPS
 # anomaly and total, ICPAC onset date and spread) with their levels — each
 # carrying the provenance note of the operational product it was sampled from.
-# §1.5 uses `noaa-cpc-anomaly`; §5 uses the two ICPAC onset scales.
+# §1.6 uses `noaa-cpc-anomaly`; §5 uses the two ICPAC onset scales.
 
 # %%
 fig = africas2s.show_schemes()
@@ -376,8 +367,7 @@ plt.show()
 # One CCA runs per model, window and resolution, so each model is calibrated
 # against its own hindcast record (`native_years=True`) and its probabilities
 # are built per model before combining (`probability_aggregation=
-# "cpt_per_model"`). The CPT arguments are the ones the operational products
-# use: 7 X-EOFs, 7 Y-EOFs, 2 CCA modes, a 5-year cross-validation window, no
+# "cpt_per_model"`). The CCA settings follow common CPT practice: 7 X-EOFs, 7 Y-EOFs, 2 CCA modes, a 5-year cross-validation window, no
 # standardisation. Probabilities stay 0–1 throughout, on the integer 0/1/2
 # tercile coordinate `seasonal_mme` returns.
 
@@ -409,9 +399,9 @@ for w in WINDOWS:
 # #### 2.1 The calibrated models, first window
 #
 # The per-model ASO 2026 maps at 10 km, after calibration. Comparing these
-# panels with the raw anomalies in §1.5 shows what calibration actually does:
+# panels with the raw anomalies in §1.6 shows what calibration actually does:
 # it keeps the part of a model's signal that has historically tracked observed
-# rainfall and discards the rest, so the maps are quieter and mutually closer.
+# rainfall and discards the rest, so the maps are typically quieter and closer to one another.
 # White cells are where no category qualifies as dominant under the CPC
 # display rule (a leading category needs the opposite tercile under 33 %).
 
@@ -588,11 +578,9 @@ plt.show()
 #
 # Two properties make this the right window. It is **issuance-anchored and
 # leak-free** — nothing after June 2026 enters the ranking. And it is **always
-# twelve points**, which keeps the correlation meaningful: an earlier version
-# scored the target only on the seasons elapsed in its own calendar year (five,
-# for a July issuance), and over five points correlation saturates — 18 of 44
-# candidate years tied at r > 0.95, leaving the ranking to be decided by the
-# mean-absolute-difference term alone.
+# twelve points**, which keeps the correlation meaningful: # a window of only the
+# seasons elapsed in the target's own calendar year can be as few as five
+# points, too few for a correlation to separate candidates.
 
 # %%
 ersst = acmaddl.fetch("obs/ersst-v5", "sst", hindcast=(1981, 2026), verbose=False)["sst"]
@@ -707,7 +695,8 @@ fig.suptitle(f"The ocean state being matched (top, red) and its {N_ANALOGS} "
 plt.savefig(FIG / "09_analogue_sst_patterns.png", dpi=150)
 plt.show()
 
-# %% [markdown]# #### What actually fell in those years — and what we forecast
+# %% [markdown]
+# #### Observed outcomes in the analogue years, beside the objective forecast
 #
 # For each analogue year, the observed rainfall tercile at every cell against
 # the 1991–2020 boundaries. A year either fell in a tercile or it did not — a
@@ -783,7 +772,8 @@ plt.show()
 #
 # When the season *starts* matters as much as how much falls. Onset is
 # computed from the **daily** C3S forecasts with `africas2s.aggregations`,
-# under the GHACOF criterion: **20 mm accumulated over 3 days**, rejected if a
+# # using the library's default onset criterion (the ICPAC/GHACOF definition):
+# **20 mm accumulated over 3 days**, rejected if a
 # 7-day dry spell follows within the next 21 days. The search window is the
 # season's three months plus the following month — **1 August to 30 November**
 # — so neither an early onset nor a late one is clipped; the daily data are

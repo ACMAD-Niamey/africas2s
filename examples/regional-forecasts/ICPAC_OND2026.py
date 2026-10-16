@@ -1,11 +1,11 @@
 # %% [markdown]
 # <p><img src="assets/logos/icpac-igad.png" alt="ICPAC — IGAD Climate Prediction and Applications Centre" title="ICPAC — IGAD Climate Prediction and Applications Centre" height="52"></p>
 #
-# # ICPAC OND 2026 — Greater Horn of Africa seasonal forecast on the ACCORD stack
+# # ICPAC OND 2026 — Greater Horn of Africa seasonal forecast with acmadDL and africas2s
 #
 # The ICPAC (IGAD Climate Prediction and Applications Centre, serving the
 # **IGAD** region and the GHACOF forum) October–December 2026 "short rains"
-# outlook, built end to end on the ACCORD stack —
+# outlook, built end to end with
 # [`acmadDL`](https://github.com/ACMAD-Niamey/acmadDL) for data,
 # [`africas2s`](https://github.com/ACMAD-Niamey/africas2s) for statistics and
 # maps. This is one of five regional demonstration notebooks, one per
@@ -41,18 +41,17 @@
 # `fetch()` over every provider, returning normalised xarray with
 # `lat`/`lon`/`year`/`member` coordinates and known units); `africas2s` is the
 # statistics and plotting layer. This notebook defines **no plotting functions
-# and no colour ramps** of its own — every map is drawn through the packaged
-# RCC framework display standards.
+# and no colour ramps** of its own — # every map is drawn through the packaged
+# RCC display styles.
 #
-# The first four lines after the imports are the **CDS endpoint guard**: this
-# machine's `~/.cdsapirc` points at ECMWF's ECDS, but the C3S seasonal
-# datasets live on the Copernicus CDS — the guard pins the CDS URL and reads
-# the Copernicus key from its backup file, so every C3S fetch lands on the
-# right endpoint.
+# # The C3S seasonal datasets are served by the Copernicus CDS
+# (`https://cds.climate.copernicus.eu/api`); make sure your `~/.cdsapirc` points
+# there (see the README prerequisites).
 
 # %%
 import os
 import warnings
+warnings.filterwarnings("ignore", message="Degrees of freedom")
 import datetime as dt
 from dataclasses import replace
 from pathlib import Path
@@ -63,11 +62,6 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 
 os.environ.setdefault("CDSAPI_URL", "https://cds.climate.copernicus.eu/api")
-if "CDSAPI_KEY" not in os.environ:
-    _bak = Path.home() / ".cdsapirc.copernicus.bak"
-    os.environ["CDSAPI_KEY"] = [l.split(":", 1)[1].strip()
-                                for l in _bak.read_text().splitlines()
-                                if l.startswith("key")][0]
 
 import acmaddl
 import africas2s
@@ -92,11 +86,9 @@ FIG.mkdir(parents=True, exist_ok=True)
 # #### 1.1 Parameters
 #
 # The forecast: **OND 2026 from the September 2026 initialisation**, over the
-# IGAD domain ICPAC serves. IGAD membership comes from the WP1 RCC directory
-# (`RCC-IGAD`): Djibouti, Eritrea, Ethiopia, Kenya, Somalia, South Sudan,
-# Sudan and Uganda — **not** Tanzania, Rwanda or Burundi, which the wider
-# "Greater Horn box" of the MAM replication work includes but the WP1
-# membership list does not. South Sudan appears twice because Natural Earth
+# IGAD domain ICPAC serves. The country list is the member states: Djibouti, Eritrea, Ethiopia, Kenya, Somalia, South Sudan,
+# Sudan and Uganda # — not Tanzania, Rwanda or Burundi, which a wider "Greater Horn" box
+# often includes but which are not IGAD members. South Sudan appears twice because Natural Earth
 # and the WMO spell it differently, and the country clip matches on any of the
 # spellings. Two working resolutions run through the whole notebook: **0.5°**
 # — ICPAC's operational grid — and **0.1° (~10 km)**, the high-resolution leg.
@@ -117,10 +109,11 @@ FIG.mkdir(parents=True, exist_ok=True)
 #
 # *The dry mask is a parameter.* A cell is greyed where the season contributes
 # less than `DRY_SHARE` of its annual rainfall — ICPAC's own seasonal-share
-# rule. ICPAC uses **15 %** as the standard and occasionally **10 %**; change
+# rule. # A 15 % threshold is used here, in the style of ICPAC's seasonal
+# products; change
 # the one number below and every map follows. It is a display choice applied
 # by the style, never a change to the calculation. For OND it greys less of
-# the domain than one might guess (§1.4 prints the count — a narrow band
+# the domain than one might guess (§1.5 prints the count — a narrow band
 # across northern Sudan): in the truly rainless Saharan interior the seasonal
 # and annual totals are both effectively zero, so the share is undefined and
 # the rule makes no call there — those cells carry no confident forecast
@@ -145,7 +138,7 @@ YEAR         = 2026
 RES_LO = 0.5                              # operational grid
 RES_HI = 0.1                              # high-resolution leg (~10 km)
 
-DRY_SHARE = 0.15                          # ICPAC standard; they occasionally use 0.10
+DRY_SHARE = 0.15                          # share of annual rainfall below which a cell is greyed
 
 # %% [markdown]
 # #### 1.2 The model roster
@@ -171,8 +164,7 @@ DRY_SHARE = 0.15                          # ICPAC standard; they occasionally us
 #   around January 2026; the roster therefore points at `c3s/jma-cps4` for the
 #   2026 initialisations, with the same 1993–2020 reforecast window.
 #
-# **Why each model shows more than one year range.** This is the question ICPAC
-# asked most often. The windows differ *by design*, for one of two reasons:
+# **Why the hindcast windows differ between models.** They differ *by design*, for one of two reasons:
 # **what the archive holds** — NASA-GEOSS2S's hindcast ends in 2017 and
 # ECMWF's in 2016, so those are hard stops — or **a harmonisation choice**:
 # the roster is floored at **1993**, the year every C3S reforecast begins, so
@@ -302,8 +294,8 @@ plt.show()
 # working grids, so the 0.5° and 10 km maps are greyed identically.
 #
 # The **style** is `TercileStyle.named("icpac")` — ICPAC's own colour
-# standard, with their rainfall palette and 40–100 % probability bands,
-# exactly as their GHACOF maps are issued. It is also the packaged house
+# standard, # with its rainfall palette and 40–100 % probability bands,
+# modelled on the ICPAC GHACOF rainfall maps. It is also the packaged house
 # default across this notebook family, so here the RCC's own convention and
 # the family standard are the same thing. The style carries the IGAD country
 # clip, the lakes, and the dry mask, so every map below is masked and coloured
@@ -334,7 +326,7 @@ print(f"IGAD cells (0.5°): {int((~outside).sum())} of {outside.size}; "
 # edges, and the classified field scales (NOAA CPC anomaly, UCSB CHIRPS
 # anomaly and total, ICPAC onset date and spread) with their levels — each
 # carrying the provenance note of the operational product it was sampled from.
-# §1.5 uses `noaa-cpc-anomaly`; §5 uses the two ICPAC onset scales.
+# §1.6 uses `noaa-cpc-anomaly`; §5 uses the two ICPAC onset scales.
 
 # %%
 fig = africas2s.show_schemes()
@@ -395,8 +387,7 @@ plt.show()
 # One CCA runs per model, window and resolution, so each model is calibrated
 # against its own hindcast record (`native_years=True`) and its probabilities
 # are built per model before combining (`probability_aggregation=
-# "cpt_per_model"`). The CPT arguments are the ones the operational products
-# use: 7 X-EOFs, 7 Y-EOFs, 2 CCA modes, a 5-year cross-validation window, no
+# "cpt_per_model"`). The CCA settings follow common CPT practice: 7 X-EOFs, 7 Y-EOFs, 2 CCA modes, a 5-year cross-validation window, no
 # standardisation. Probabilities stay 0–1 throughout, on the integer 0/1/2
 # tercile coordinate `seasonal_mme` returns.
 
@@ -428,9 +419,9 @@ for w in WINDOWS:
 # #### 2.1 The calibrated models, first window
 #
 # The per-model OND 2026 maps at 10 km, after calibration. Comparing these
-# panels with the raw anomalies in §1.5 shows what calibration actually does:
+# panels with the raw anomalies in §1.6 shows what calibration actually does:
 # it keeps the part of a model's signal that has historically tracked observed
-# rainfall and discards the rest, so the maps are quieter and mutually closer.
+# rainfall and discards the rest, so the maps are typically quieter and closer to one another.
 # White cells are where no category clears the ICPAC display bands (a leading
 # category needs at least 40 % probability to take a colour).
 
@@ -603,20 +594,14 @@ plt.show()
 # the ranking never sees rainfall, only SST, the observed rainfall in the
 # selected years is a genuine out-of-sample check on the outlook above.
 #
-# The target year is **2026** — the init year — and its curve is **truncated
-# at the issuance**: the last 3-month season wholly observed before the
-# 1 September initialisation is JJA, so the later slots are set to NaN and
-# every candidate is scored only on the pre-issuance seasons. No observation
-# from after the forecast was issued leaks into the ranking.
-#
-# **The window is the twelve seasons ending at issuance.** Each year's
+# # **The window is the twelve seasons ending at issuance.** Each year's
 # "evolution" is the run of twelve overlapping 3-month means that ends with the
 # **last season fully observed before the forecast was issued**, and every
 # candidate year is cut at the same relative point. That keeps the comparison
 # issuance-anchored and leak-free, and it is always twelve points — which is
-# what keeps the correlation meaningful. (Scoring the target only on the
-# seasons elapsed in its own calendar year gives as few as five points, over
-# which correlation saturates: dozens of candidate years tie above r = 0.95.)
+# what keeps the correlation meaningful. # (A shorter window — only the seasons elapsed in the target's own calendar
+# year — can be as few as five points, too few for a correlation to separate
+# candidates.)
 
 # %%
 ersst = acmaddl.fetch("obs/ersst-v5", "sst", hindcast=(1981, 2026), verbose=False)["sst"]
@@ -728,7 +713,8 @@ fig.suptitle(f"The ocean state being matched (top, red) and its {N_ANALOGS} "
 plt.savefig(FIG / "09_analogue_sst_patterns.png", dpi=150)
 plt.show()
 
-# %% [markdown]# #### What actually fell in those years — and what we forecast
+# %% [markdown]
+# #### Observed outcomes in the analogue years, beside the objective forecast
 #
 # For each analogue year, the observed rainfall tercile at every cell against
 # the 1991–2020 boundaries. A year either fell in a tercile or it did not — a

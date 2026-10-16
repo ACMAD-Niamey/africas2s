@@ -1,8 +1,7 @@
 """Percent-format .py -> .ipynb, then execute in place.
 
-jupytext is not installed in the accord-chc env and the workspace rule says not
-to add packages to a shared runtime env without noting it, so this does the
-round-trip with nbformat + nbclient, which are already there.
+Uses nbformat + nbclient rather than jupytext, so the only dependencies are ones
+a Jupyter install already has.
 
 usage: py2nb.py SOURCE.py TARGET.ipynb [--no-exec] [--timeout SECONDS]
 """
@@ -60,9 +59,8 @@ def inline_local_images(body, src_dir, display_h=52, retina=2):
     """Rewrite <img src="relative/path.png"> to a base64 data URI.
 
     GitHub's .ipynb renderer does not resolve relative image paths in markdown
-    cells (README.md does), and raw.githubusercontent URLs need auth on a
-    private repo — an embedded image is the only form that renders both on
-    GitHub and in a local Jupyter. Images are re-encoded at `retina` x the
+    cells (README.md does) — an embedded image is the only form that renders both
+    on GitHub and in a local Jupyter. Images are re-encoded at `retina` x the
     declared display height to keep the notebook small.
     """
     def repl(m):
@@ -111,7 +109,7 @@ def build(src_path):
                                       "tags": ["hide-input"]})
             nb.cells.append(cell)
     nb.metadata.update({
-        "kernelspec": {"display_name": "Python (accord-chc)",
+        "kernelspec": {"display_name": "Python 3",
                        "language": "python", "name": "python3"},
         "language_info": {"name": "python", "version": "3.12.13",
                           "file_extension": ".py", "mimetype": "text/x-python",

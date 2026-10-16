@@ -23,7 +23,9 @@ the parts that matter — the domain, the season, and the display conventions:
    global-tropics predictor onto the regional predictand
 4. **The objective forecast** — equal-weight probability average
 5. **Skill** — cross-validated GROC and RPSS per model
-6. **Onset** — from the daily C3S fields, where the season has a meaningful one
+6. **Analogue years** — the past years whose Niño3.4 and IOD evolution most
+   resembles this one, and what fell in them
+7. **Onset** — from the daily C3S fields, where the season has a meaningful one
 
 ## Running them
 
