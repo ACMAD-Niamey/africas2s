@@ -10,7 +10,7 @@ admin-unit `(…, region)` aggregation, or on a single station series `(…,)`.
 | Module | Top-level exports | Role |
 |---|---|---|
 | `africas2s.analog` | `AnalogSet`, `analogs_from_years`, `analogs_from_index`, `analogs_from_field`, `analogs_from_evolution`, `analogs_where` | *Which* past years are analogs |
-| `africas2s.climate` | `seasonal_stack`, `seasonal_reduce`, `accumulate`, `percentile_of`, `percent_of_normal`, `frequency_below`, `rank_of_record` | Season aggregation + positioning a value in a record |
+| `africas2s.climate` | `seasonal_stack`, `seasonal_reduce`, `accumulate`, `lead_window_reduce`, `forecast_window`, `forecast_increments`, `percentile_of`, `percent_of_normal`, `frequency_below`, `rank_of_record` | Season aggregation, lead-window reduction of sub-seasonal forecasts, positioning a value in a record |
 | `africas2s.completion` | `complete`, `CompletionResult` | Splice observed + forecast + analog remainders into scenarios |
 | `africas2s.series` | `quantile_map`, `error_bounds`, `ErrorBounds` | Bias-correct / bracket a scalar forecast *series* |
 | `africas2s.time` | (module-qualified only — see below) | Season-step alignment + dekad/pentad calendar arithmetic |
@@ -151,6 +151,62 @@ rolling window (keeps `dim`, each stamp holds the accumulation ending there). `h
 `"sum"/"mean"/"max"/"min"`. `min_count` = minimum non-NaN steps to produce a value; defaults to
 requiring **every** step (so a partially-missing accumulation is NaN, not a silent under-count) —
 pass `1` to accumulate whatever is present.
+
+### Lead windows (sub-seasonal forecasts)
+
+A sub-seasonal forecast lives on a lead axis, not a calendar one, so "next week" or "days 1–30"
+are windows of lead. These three functions turn a forecast as acmadDL returns it into the shapes
+the rest of africas2s takes.
+
+```python
+lead_window_reduce(da, windows=None, *, lead_dim="lead_time", how="mean",
+                   lead_units=None, require_complete=True) -> (window, …)
+```
+Collapse `lead_dim` to one value per named window (`{name: (first_day, last_day)}`, 1-based,
+inclusive; default `LEAD_WINDOWS_S2S` = week1–week4 + day1_30), leaving every other dim alone.
+The lead axis may be **numeric with a `units` attribute** (`"hours"`/`"days"`, the seasonal
+C3S/S2S products; `lead_units=` overrides a wrong attribute) or a **`timedelta64`** (acmadDL's
+issuance-keyed products — CHIRPS-GEFS and every `weather-skills/*` forecast — which needs no attribute).
+Rules that make sub-daily axes (IFS-ENS, GEFS, AIFS: 3–6-hourly steps) come out right:
+
+- A step belongs to **the day it ends in**: 3 h … 24 h are day 1, 27 h … 48 h day 2. Lead 0 is
+  day 0 — outside every 1-based window, inside a 0-based one (CHIRPS-GEFS counts the issuance day
+  as lead 0, so ask for `(0, 6)` there).
+- `require_complete` counts **days** covered, not steps: a window missing a day raises.
+- `how="sum"` on sub-daily steps **integrates a rate** over step length (`"mm/day"`, `"mm day-1"`,
+  `"kg m-2 s-1"` → an amount; the output `units` becomes the amount, e.g. `mm`) and **adds an
+  amount** plainly (`"mm"`). Without a `units` attribute it refuses rather than guess — adding
+  eight 3-hourly `mm/day` values would be eight times the day's rain.
+- `how="mean"` on uneven steps is duration-weighted; `max`/`min` are unchanged.
+- On a daily-or-coarser axis every `how` is the plain reduction, exactly as before.
+
+```python
+forecast_window(fc, window, *, how="mean", lead_dim="lead_time", init_dim="init_time",
+                lead_units=None, require_complete=True) -> (member, lat, lon)
+```
+A real-time forecast `(init_time, lead_time, member, lat, lon)` → the `(member, lat, lon)` field a
+fitted method's `.predict()` takes, for one `window` (`(first, last)` or a `LEAD_WINDOWS_S2S`
+name). Squeezes the single issuance (several → `ValueError`: select one first), reduces with
+`lead_window_reduce`, records `attrs["lead_window"]`. `how="sum"` for a rainfall total.
+
+```python
+forecast_increments(fc, *, how="sum", lead_dim="lead_time", init_dim="init_time",
+                    time_dim="time", lead_units=None) -> (time, …)
+```
+The same forecast as **daily increments on calendar dates** — the `forecast=` input `complete`
+takes, splicing onto daily observations. Day *d* is stamped `issuance + (d−1)` days; sub-daily
+rates become daily totals; a last day the forecast only partly covers is dropped rather than
+returned short. The issuance comes from `init_dim`, or from `time_dim` (acmadDL's valid time)
+minus the lead.
+
+Typical acmadDL → africas2s path for a `weather-skills/ifs-ens-46d` forecast:
+
+```python
+fc = acmaddl.fetch("weather-skills/ifs-ens-46d", "precip", init="2026-10-01", region=KENYA)["precip"]
+field = ds.forecast_window(fc, (11, 20), how="sum")        # dekad 2 total, (member, lat, lon)
+y = model.predict(field)                                   # a method trained on c3s/ecmwf-s2s reforecasts
+inc = ds.forecast_increments(fc)                           # (time, lat, lon) daily mm for complete(forecast=inc)
+```
 
 ### Positioning a value in a record
 

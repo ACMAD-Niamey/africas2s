@@ -54,13 +54,14 @@ def test_lead_window_reduce_lead_units_override_beats_the_attribute():
     """A mislabelled axis is recoverable without rewriting the data."""
     da = _forecast(units="days")
     da["lead_time"].attrs["units"] = "hours"         # wrong attribute
-    # Trusting the attribute divides the axis by 24, so "week1" lands on a
-    # different set of leads entirely -- and silently, since over-selection is
-    # not something require_complete can catch.
-    wrong = lead_window_reduce(da, {"week1": (1, 7)})
+    # Trusting the attribute divides the axis by 24, so 46 "hours" span only two
+    # days: every lead lands in day 1 or day 2 and the 7-day window is incomplete.
+    # (Before steps were assigned to the day they end in, this over-selected
+    # leads 24-46 silently.) The override recovers the axis.
+    with pytest.raises(ValueError, match="2 of 7 days"):
+        lead_window_reduce(da, {"week1": (1, 7)})
     right = lead_window_reduce(da, {"week1": (1, 7)}, lead_units="days")
     assert float(right.sel(window="week1").isel(lat=0, lon=0)) == pytest.approx(4.0)
-    assert float(wrong.sel(window="week1").isel(lat=0, lon=0)) != pytest.approx(4.0)
 
 
 def test_lead_window_reduce_rejects_an_incomplete_window():
@@ -172,3 +173,152 @@ def test_eio_is_registered_as_the_absolute_eastern_pole():
     wio = a2s.Index.named("wio")
     # EIO mirrors WIO: absolute units, cos-lat weighted, one pole box each.
     assert eio.transform == wio.transform
+
+
+# ------------------------------------------- timedelta leads and sub-daily steps
+#
+# acmadDL's issuance-keyed products (CHIRPS-GEFS, the rhiza/* forecasts) carry
+# lead_time as a timedelta64, and the rhiza dynamical.org products step every
+# 3-6 hours rather than daily. The reducer must read both: a timedelta axis
+# needs no units attribute, a step belongs to the day it ends in, and summing
+# a rate over sub-daily steps must integrate rather than add.
+
+import pandas as pd
+from africas2s.climate import forecast_increments, forecast_window
+
+
+def _td_forecast(step_hours=24, n_days=15, units="mm/day", with_init=True, members=3):
+    """acmadDL-shaped single-issuance forecast: (init_time, lead_time, member, lat, lon).
+
+    Values are the lead day number (1-based, the day a step ends in) so sums and
+    means over a window are predictable: a day-1 total of a 2 mm/day rate is 2 mm.
+    """
+    lead = pd.to_timedelta(np.arange(step_hours, n_days * 24 + step_hours, step_hours), unit="h")
+    day = np.ceil(np.asarray(lead / pd.Timedelta(days=1))).astype("float32")
+    data = np.broadcast_to(day[None, :, None, None, None], (1, lead.size, members, 2, 3)).copy()
+    init = np.array(["2026-09-28T00:00:00"], dtype="datetime64[ns]")
+    da = xr.DataArray(
+        data, dims=("init_time", "lead_time", "member", "lat", "lon"),
+        coords={"init_time": init, "lead_time": lead.values, "member": np.arange(members),
+                "lat": [0.0, 1.0], "lon": [50.0, 51.0, 52.0]},
+        attrs={"units": units},
+    )
+    da = da.assign_coords(time=da["init_time"] + da["lead_time"])     # acmadDL's valid time
+    return da if with_init else da.squeeze("init_time", drop=True)
+
+
+def test_lead_window_reduce_reads_a_timedelta_axis_without_units():
+    daily = _td_forecast(step_hours=24, with_init=False)
+    out = lead_window_reduce(daily, {"week1": (1, 7)})
+    assert float(out.sel(window="week1").isel(member=0, lat=0, lon=0)) == pytest.approx(4.0)
+
+
+def test_sub_daily_steps_belong_to_the_day_they_end_in():
+    """3-hourly steps 3h..24h are all day 1; a (1, 1) window must take all eight."""
+    fc = _td_forecast(step_hours=3, with_init=False)
+    out = lead_window_reduce(fc, {"d1": (1, 1)}, how="mean")
+    assert float(out.sel(window="d1").isel(member=0, lat=0, lon=0)) == pytest.approx(1.0)
+    cnt = lead_window_reduce(fc.notnull().astype("float32").assign_attrs(units="1"), {"d1": (1, 1)}, how="sum")
+    assert float(cnt.sel(window="d1").isel(member=0, lat=0, lon=0)) == pytest.approx(8.0)
+
+
+def test_sum_of_sub_daily_rates_integrates_over_step_length():
+    """Eight 3-hourly steps of a 1 mm/day rate are 1 mm, not 8."""
+    fc = _td_forecast(step_hours=3, with_init=False, units="mm/day")
+    out = lead_window_reduce(fc, {"week1": (1, 7)}, how="sum")
+    assert float(out.sel(window="week1").isel(member=0, lat=0, lon=0)) == pytest.approx(28.0)  # sum(1..7) mm
+    assert out.attrs["units"] == "mm"
+
+
+def test_sum_of_sub_daily_amounts_adds_plainly():
+    fc = _td_forecast(step_hours=3, with_init=False, units="mm")
+    out = lead_window_reduce(fc, {"d1": (1, 1)}, how="sum")
+    assert float(out.sel(window="d1").isel(member=0, lat=0, lon=0)) == pytest.approx(8.0)
+    assert out.attrs["units"] == "mm"
+
+
+def test_sum_of_sub_daily_steps_without_units_is_refused():
+    fc = _td_forecast(step_hours=3, with_init=False)
+    fc.attrs.pop("units")
+    with pytest.raises(ValueError, match="units"):
+        lead_window_reduce(fc, {"d1": (1, 1)}, how="sum")
+
+
+def test_mean_over_uneven_sub_daily_steps_is_duration_weighted():
+    """3-hourly to 144 h then 6-hourly, like IFS-ENS: a window straddling the
+    change weights each step by how long it lasts."""
+    lead = pd.to_timedelta(list(range(3, 145, 3)) + list(range(150, 361, 6)), unit="h")
+    vals = np.where(lead <= pd.Timedelta(hours=144), 1.0, 3.0).astype("float32")   # day 6 = 1, day 7 = 3
+    da = xr.DataArray(vals, dims=("lead_time",), coords={"lead_time": lead.values}, attrs={"units": "K"})
+    out = lead_window_reduce(da, {"d6_7": (6, 7)}, how="mean")
+    assert float(out.sel(window="d6_7")) == pytest.approx(2.0)      # one day of 1, one day of 3
+
+
+def test_sub_daily_require_complete_counts_days_not_steps():
+    fc = _td_forecast(step_hours=3, n_days=10, with_init=False)
+    with pytest.raises(ValueError, match="days"):
+        lead_window_reduce(fc, {"week2": (8, 14)})
+    out = lead_window_reduce(fc, {"week2": (8, 14)}, require_complete=False)
+    assert float(out.sel(window="week2").isel(member=0, lat=0, lon=0)) == pytest.approx(9.0)  # mean(8, 9, 10)
+
+
+def test_chirps_gefs_style_day_axis_still_takes_lead_zero_in_a_zero_based_window():
+    lead = pd.to_timedelta(np.arange(0, 16), unit="D")
+    da = xr.DataArray(np.arange(16, dtype="float32"), dims=("lead_time",), coords={"lead_time": lead.values},
+                      attrs={"units": "mm/day"})
+    out = lead_window_reduce(da, {"first_week": (0, 6)}, how="sum")
+    assert float(out.sel(window="first_week")) == pytest.approx(21.0)      # 0+1+...+6, one day per step
+
+
+def test_forecast_window_gives_the_member_lat_lon_shape_predict_expects():
+    fc = _td_forecast(step_hours=3)
+    out = forecast_window(fc, (1, 10), how="sum")
+    assert set(out.dims) == {"member", "lat", "lon"}
+    assert float(out.isel(member=0, lat=0, lon=0)) == pytest.approx(55.0)   # sum(1..10) mm
+    assert out.attrs["units"] == "mm" and out.attrs["lead_window"] == "days 1-10"
+
+
+def test_forecast_window_accepts_a_named_window_and_a_bare_lead_axis():
+    fc = _td_forecast(step_hours=24, with_init=False)
+    out = forecast_window(fc, "week2", how="mean")
+    assert float(out.isel(member=0, lat=0, lon=0)) == pytest.approx(11.0)   # mean(8..14)
+
+
+def test_forecast_window_refuses_several_issuances():
+    fc = xr.concat([_td_forecast(), _td_forecast()], dim="init_time")
+    with pytest.raises(ValueError, match="init_time"):
+        forecast_window(fc, (1, 7))
+
+
+def test_forecast_increments_are_daily_totals_on_calendar_dates():
+    fc = _td_forecast(step_hours=3, n_days=5)
+    inc = forecast_increments(fc, how="sum")
+    assert set(inc.dims) == {"time", "member", "lat", "lon"}
+    assert list(pd.DatetimeIndex(inc["time"].values).strftime("%Y-%m-%d")) == [
+        "2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02"]
+    assert inc.isel(member=0, lat=0, lon=0).values.tolist() == pytest.approx([1.0, 2.0, 3.0, 4.0, 5.0])
+    assert inc.attrs["units"] == "mm"
+
+
+def test_forecast_increments_drop_a_partial_last_day():
+    fc = _td_forecast(step_hours=3, n_days=5).isel(lead_time=slice(0, 37))   # day 5 has 5 of 8 steps
+    inc = forecast_increments(fc, how="sum")
+    assert inc.sizes["time"] == 4
+
+
+def test_forecast_increments_from_a_daily_axis_are_the_values_themselves():
+    fc = _td_forecast(step_hours=24, n_days=3)
+    inc = forecast_increments(fc, how="sum")
+    assert inc.isel(member=0, lat=0, lon=0).values.tolist() == pytest.approx([1.0, 2.0, 3.0])
+
+
+def test_forecast_increments_keep_a_complete_last_day_after_a_step_change():
+    """IFS-ENS steps 3-hourly to 144 h then 6-hourly: day 15 has four steps like
+    days 7-14, not eight like days 1-6, and is complete. Found on real data."""
+    lead = pd.to_timedelta(list(range(3, 145, 3)) + list(range(150, 361, 6)), unit="h")
+    day = np.ceil(np.asarray(lead / pd.Timedelta(days=1))).astype("float32")
+    da = xr.DataArray(day, dims=("lead_time",), coords={"lead_time": lead.values,
+                      "init_time": np.datetime64("2026-09-28", "ns")}, attrs={"units": "mm/day"})
+    inc = forecast_increments(da, how="sum")
+    assert inc.sizes["time"] == 15
+    assert inc.values.tolist() == pytest.approx(list(range(1, 16)))
