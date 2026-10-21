@@ -24,7 +24,7 @@ from africas2s.mcp import server  # noqa: E402
 
 EXPECTED_TOOLS = {
     "list_registry", "describe_dataset", "downscale", "optimize", "calibrate",
-    "ensemble", "skill", "to_tercile", "plot_terciles", "plot_field",
+    "ensemble", "skill", "to_tercile", "forecast_window", "plot_terciles", "plot_field",
 }
 
 
@@ -147,6 +147,51 @@ def test_optimize_reports_winner(files):
     assert isinstance(out["score"], float)
     assert out["path"].endswith(".nc")
     json.dumps(out)
+
+
+@pytest.fixture
+def lead_forecast_file(tmp_path):
+    """A single-issuance sub-seasonal forecast as acmaddl.fetch returns it for a
+    weather-skills/* product: (init_time, lead_time, member, lat, lon), daily
+    timedelta leads 0..30 d, a rate in mm/day equal to the lead day number."""
+    days = np.arange(31)
+    fc = xr.DataArray(
+        np.broadcast_to(days[None, :, None, None, None].astype(float), (1, 31, 4, 3, 3)).copy(),
+        dims=("init_time", "lead_time", "member", "lat", "lon"),
+        coords={"init_time": np.array(["2026-10-19"], dtype="datetime64[ns]"),
+                "lead_time": days.astype("timedelta64[D]").astype("timedelta64[ns]"),
+                "member": np.arange(4), "lat": [-1.0, 0.0, 1.0], "lon": [36.0, 37.0, 38.0]},
+        name="precip", attrs={"units": "mm/day"},
+    )
+    path = tmp_path / "ifs_ens_46d_2026-10-19.nc"
+    fc.to_netcdf(path)
+    return str(path)
+
+
+def test_forecast_window_reduces_a_lead_window_to_member_lat_lon(lead_forecast_file):
+    out = server.forecast_window(lead_forecast_file, window="week1", how="sum")
+    assert out["dims"] == {"member": 4, "lat": 3, "lon": 3}
+    assert out["variables"]["precip"]["units"] == "mm"          # a rate integrated to a total
+    da = xr.open_dataarray(out["path"])
+    assert float(da.isel(member=0, lat=0, lon=0)) == pytest.approx(28.0)   # 1+2+...+7
+    assert da.attrs["lead_window"] == "days 1-7"
+    assert out["request"]["window"] == "week1"
+    json.dumps(out)
+
+
+def test_forecast_window_ensemble_mean_is_a_map_plot_field_can_draw(lead_forecast_file):
+    out = server.forecast_window(lead_forecast_file, window=[8, 14], how="sum", ensemble_mean=True)
+    assert out["dims"] == {"lat": 3, "lon": 3}
+    da = xr.open_dataarray(out["path"])
+    assert float(da.isel(lat=0, lon=0)) == pytest.approx(77.0)   # 8+...+14
+    assert da.attrs["units"] == "mm" and da.attrs["lead_window"] == "days 8-14"
+    png = server.plot_field(out["path"], title="week 2 total")
+    assert open(png["path"], "rb").read(4) == b"\x89PNG"
+
+
+def test_forecast_window_unknown_window_reaches_client(lead_forecast_file):
+    with pytest.raises(ToolError, match="week9"):
+        _run(server.mcp.call_tool("forecast_window", {"forecast_path": lead_forecast_file, "window": "week9"}))
 
 
 def test_to_tercile_then_skill(files, tmp_path, gcm_hindcast, perfect_tercile_forecast):

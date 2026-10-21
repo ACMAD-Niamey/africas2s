@@ -42,6 +42,7 @@ from typing_extensions import NotRequired, TypedDict
 import africas2s
 from africas2s import cv as _cv
 from africas2s import registry
+from africas2s.climate import forecast_window as _forecast_window
 from africas2s.tercile import to_tercile as _to_tercile
 
 _HERE = Path(__file__).resolve().parent
@@ -133,6 +134,7 @@ MetricPreset = Literal[PRESETS]
 CVScheme = Literal[CV_SCHEMES]
 OutputType = Literal["continuous", "tercile"]
 TercileMethod = Literal["counting", "gaussian"]
+WindowHow = Literal["sum", "mean", "max", "min"]
 VariableKind = Literal["precip", "temp"]
 
 
@@ -766,6 +768,48 @@ def to_tercile(
     probs = _call(_to_tercile, fc, obs, method=method)
     params = dict(forecast_path=forecast_path, obs_path=obs_path, method=method)
     return _write(probs, "probability", destination, "tercile", Path(forecast_path).stem, params=params)
+
+
+@tool()
+def forecast_window(
+    forecast_path: Annotated[str, Field(
+        description="NetCDF path of a single-issuance sub-seasonal forecast as acmaddl.fetch returns "
+                    "weather-skills/* and CHIRPS-GEFS products: (init_time, lead_time, member, lat, lon) "
+                    "with lead_time a timedelta, or a numeric lead axis with a units attr.")],
+    window: Annotated[str | list[int], Field(
+        description='A named window ("week1", "week2", "week3", "week4", "day1_30") or '
+                    "[first_day, last_day], 1-based and inclusive. A lead step belongs to the day it ends in.")],
+    how: Annotated[WindowHow, Field(
+        description='"sum" integrates a rate (mm/day) over the steps into a total (units become mm) '
+                    'and adds an amount; "mean" (default) for a state variable; "max", "min".')] = "mean",
+    ensemble_mean: Annotated[bool, Field(
+        description="Also average over members, giving the 2-D (lat, lon) map plot_field draws. "
+                    "A deterministic product (no member dim) is returned unchanged.")] = False,
+    variable: VariableArg = None,
+    destination: DestinationArg = None,
+) -> DatasetSummary:
+    """Reduce one lead window of a sub-seasonal forecast to the (member, lat, lon)
+    field a fitted method's predict takes, or with ensemble_mean=true to a
+    (lat, lon) map for plot_field. Use how="sum" for a rainfall total. These
+    products carry no hindcast stream, so the result cannot be calibrated or
+    scored: present it as a raw model forecast, without a skill claim.
+
+    Returns: {path, dims, coords, variables, attrs, size_bytes, request}; attrs
+    carry lead_window ("days 1-7").
+    Example: forecast_window(forecast_path="ifs_ens_46d_2026-10-19.nc", window="week2",
+                             how="sum", ensemble_mean=true)
+    """
+    if not isinstance(window, str):
+        if len(window) != 2:
+            raise ToolError(f"window must be a named window or [first_day, last_day]; got {window!r}.")
+        window = (int(window[0]), int(window[1]))
+    fc = load_array(forecast_path, variable)
+    out = _call(_forecast_window, fc, window, how=how)
+    if ensemble_mean and "member" in out.dims:
+        out = out.mean("member", keep_attrs=True)
+    label = window if isinstance(window, str) else f"days{window[0]}-{window[1]}"
+    params = dict(forecast_path=forecast_path, window=window, how=how, ensemble_mean=ensemble_mean)
+    return _write(out, fc.name, destination, "window", Path(forecast_path).stem, label, params=params)
 
 
 # --------------------------------------------------------------------------

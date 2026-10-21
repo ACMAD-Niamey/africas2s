@@ -173,12 +173,12 @@ Rules that make sub-daily axes (IFS-ENS, GEFS, AIFS: 3–6-hourly steps) come ou
   day 0 — outside every 1-based window, inside a 0-based one (CHIRPS-GEFS counts the issuance day
   as lead 0, so ask for `(0, 6)` there).
 - `require_complete` counts **days** covered, not steps: a window missing a day raises.
-- `how="sum"` on sub-daily steps **integrates a rate** over step length (`"mm/day"`, `"mm day-1"`,
+- `how="sum"` **integrates a rate** over step length whatever the step (`"mm/day"`, `"mm day-1"`,
   `"kg m-2 s-1"` → an amount; the output `units` becomes the amount, e.g. `mm`) and **adds an
-  amount** plainly (`"mm"`). Without a `units` attribute it refuses rather than guess — adding
+  amount** plainly (`"mm"`). Without a `units` attribute, sub-daily steps refuse rather than guess — adding
   eight 3-hourly `mm/day` values would be eight times the day's rain.
 - `how="mean"` on uneven steps is duration-weighted; `max`/`min` are unchanged.
-- On a daily-or-coarser axis every `how` is the plain reduction, exactly as before.
+- On a daily axis `how="sum"` of a rate gives the same numbers as the plain sum (one day per step) with the amount's units (`mm/day` → `mm`); on coarser steps each step counts for its days. `mean`/`max`/`min` on a daily-or-coarser axis are the plain reductions. Unlabelled daily values add plainly; only sub-daily steps refuse a `sum` without `units`.
 
 ```python
 forecast_window(fc, window, *, how="mean", lead_dim="lead_time", init_dim="init_time",

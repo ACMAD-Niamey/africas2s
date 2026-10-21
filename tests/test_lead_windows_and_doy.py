@@ -322,3 +322,27 @@ def test_forecast_increments_keep_a_complete_last_day_after_a_step_change():
     inc = forecast_increments(da, how="sum")
     assert inc.sizes["time"] == 15
     assert inc.values.tolist() == pytest.approx(list(range(1, 16)))
+
+
+def test_sum_of_daily_rate_steps_is_an_amount():
+    """Seven daily mm/day values summed are millimetres: the number was already
+    right on a daily axis, the label was not (it stayed mm/day)."""
+    fc = _td_forecast(step_hours=24, with_init=False, units="mm/day")
+    out = lead_window_reduce(fc, {"week1": (1, 7)}, how="sum")
+    assert float(out.isel(window=0, member=0, lat=0, lon=0)) == pytest.approx(28.0)   # 1+2+...+7
+    assert out.attrs["units"] == "mm"
+
+
+def test_sum_of_coarser_than_daily_rate_steps_integrates_step_length():
+    """A rate on 48-hourly steps integrates over two days per step, not one."""
+    fc = _td_forecast(step_hours=48, n_days=4, with_init=False, units="mm/day")   # leads 48 h, 96 h
+    out = lead_window_reduce(fc, {"w": (1, 4)}, how="sum", require_complete=False)
+    assert float(out.isel(window=0, member=0, lat=0, lon=0)) == pytest.approx(12.0)   # 2*2 + 4*2 mm
+    assert out.attrs["units"] == "mm"
+
+
+def test_sum_of_daily_amount_steps_adds_plainly():
+    fc = _td_forecast(step_hours=24, with_init=False, units="mm")
+    out = lead_window_reduce(fc, {"week1": (1, 7)}, how="sum")
+    assert float(out.isel(window=0, member=0, lat=0, lon=0)) == pytest.approx(28.0)
+    assert out.attrs["units"] == "mm"

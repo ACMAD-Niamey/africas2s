@@ -598,26 +598,32 @@ def lead_window_reduce(da, windows=None, *, lead_dim="lead_time", how="mean",
         sub = da.isel({lead_dim: mask})
         w = dt.isel({lead_dim: mask})
         sub_daily = bool((w < 1 - 1e-9).any())
-        if how in ("max", "min") or not sub_daily:
+        if how in ("max", "min") or (how == "mean" and not sub_daily):
             # One lead per day (or coarser): the plain reduction is exact.
             piece = getattr(sub, how)(lead_dim)
         elif how == "mean":
             # Steps of unequal length (3-hourly to 144 h, then 6-hourly) must
             # each count for how long they last.
             piece = (sub * w).sum(lead_dim) / w.where(sub.notnull()).sum(lead_dim)
-        else:  # sum over sub-daily steps: integrate a rate, add an amount
+        else:  # sum: integrate a rate over step length, add an amount
             if "units" not in da.attrs:
-                raise ValueError(
-                    f"window {name!r}: the lead axis steps more often than daily, so "
-                    "how='sum' must know whether the variable is a rate (integrate over "
-                    "step length) or an amount (add). Set da.attrs['units'] "
-                    "(e.g. 'mm/day' or 'mm') or use how='mean'.")
-            factor, amount_units = _rate_factor(da.attrs["units"])
-            if factor is None:
-                piece = sub.sum(lead_dim)
+                if sub_daily:
+                    raise ValueError(
+                        f"window {name!r}: the lead axis steps more often than daily, so "
+                        "how='sum' must know whether the variable is a rate (integrate over "
+                        "step length) or an amount (add). Set da.attrs['units'] "
+                        "(e.g. 'mm/day' or 'mm') or use how='mean'.")
+                piece = sub.sum(lead_dim)            # unlabelled daily values: add, as before
             else:
-                piece = (sub * w * factor).sum(lead_dim)
-                out_units = amount_units
+                factor, amount_units = _rate_factor(da.attrs["units"])
+                if factor is None:
+                    piece = sub.sum(lead_dim)        # an amount adds plainly
+                else:
+                    # A rate integrates over each step's length: on a daily axis the
+                    # numbers equal the plain sum and only the units change (mm/day -> mm);
+                    # on 48-hourly or coarser steps each step counts for its days.
+                    piece = (sub * w * factor).sum(lead_dim)
+                    out_units = amount_units
         pieces.append(piece)
         names.append(name)
 
