@@ -159,3 +159,13 @@ def test_rejects_bad_missing_mode():
     a = _probs(LAT, LON, (0.5, 0.3, 0.2))
     with pytest.raises(ValueError):
         africas2s.combine_terciles([a, a], missing="climatological")
+
+
+def test_combined_probabilities_are_dimensionless():
+    """Probabilities carry units "1", whatever the components carry."""
+    from africas2s.combine import combine_terciles
+    p = xr.DataArray(np.full((3, 2, 2), 1 / 3), dims=("tercile", "lat", "lon"),
+                     coords={"tercile": [0, 1, 2], "lat": [0.0, 1.0], "lon": [0.0, 1.0]},
+                     attrs={"units": "mm"})
+    out = combine_terciles({"a": p, "b": p})
+    assert out.attrs.get("units") == "1", out.attrs

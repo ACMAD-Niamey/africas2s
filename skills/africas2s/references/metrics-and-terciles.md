@@ -4,6 +4,8 @@
 
 Two distinct paths in `africas2s.tercile`. Choosing the wrong one silently inflates skill.
 
+Every tercile-probability array africas2s returns — `to_tercile`, `to_tercile_cv`, `cpt_tercile_forecast`, the tercile outputs of `ereg`, `logistic_forecast` and `smoothed_regression`, and `combine_terciles` — carries `units="1"` (CF for a dimensionless quantity) and `long_name="tercile probability"`. `as_probability(da)` in `africas2s.tercile` stamps that label: it drops the `units`/`long_name`/`standard_name` a probability inherits from the predictand (xarray ≥ 2026.2 keeps attrs through comparisons and reductions, so an unlabelled counting step comes out "in mm") and keeps any other attrs the constructor set (`method`, …). Pass any probability array you build yourself through it.
+
 ### `to_tercile(forecast, obs_climatology, method="counting")` — production path
 
 - `forecast` `(member, lat, lon)`; boundaries = 1/3 and 2/3 empirical quantiles of the supplied climatology over `year`.

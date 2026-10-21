@@ -256,7 +256,7 @@ def tercile_mae(probs, reference) -> float
 - `africas2s.time.{season_step, season_bounds, season_months, season_times, infer_cadence, dekad_start_for, dekad_window, dekad_of_year, dekads_for_issuance, pentad_start_for, pentad_window}` — season-step alignment + dekad/pentad calendar arithmetic. Reference module-qualified (`africas2s.time.season_step`). See `references/analog-completion.md`.
 - `africas2s.indices.REGIONS` (box definitions dict) and `africas2s.indices.Index.list_named()` — public, module-qualified only.
 - `africas2s.metrics.leverage(x)` — simple-regression leverage `h_i`, alongside the top-level `loo_predict`/`loo_corr`; see `references/metrics-and-terciles.md`.
-- `africas2s.tercile.{to_tercile, to_tercile_cv, cpt_tercile_forecast}` — see `references/metrics-and-terciles.md`.
+- `africas2s.tercile.{to_tercile, to_tercile_cv, cpt_tercile_forecast, as_probability}` — see `references/metrics-and-terciles.md`.
 - `africas2s.cv.{loyo, lko, blocked, expanding, get_cv}` — see `references/methods.md`.
 - `africas2s.registry.{register_method, register_calibrator, register_metric, register_strategy, get_method, get_metric, get_strategy, ...}` — extension points.
 - `africas2s.methods.base.{MethodBase, ProbabilisticMethodBase}` — subclass + `register_method` to add a method; `ProbabilisticMethodBase` adds `predict_distribution()`.

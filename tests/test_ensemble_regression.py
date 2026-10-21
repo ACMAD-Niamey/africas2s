@@ -219,3 +219,11 @@ def test_predict_tercile_leverage_widens_variance_at_fixed_mean():
     mu_far = float(m.slope_.ravel()[0]) * 3.0 + float(m.intercept_.ravel()[0])
     assert float(t.sel(tercile=0).values.reshape(-1)[0]) == pytest.approx(
         float(norm.cdf(t33, mu_far, sig_far)), abs=1e-9)
+
+
+def test_predict_tercile_is_dimensionless():
+    """Probabilities carry units "1", never the predictand's (xarray >= 2026.2 keeps attrs)."""
+    hindcast, obs = _synthetic()
+    hindcast, obs = hindcast.assign_attrs(units="mm"), obs.assign_attrs(units="mm")
+    t = EnsembleRegressionMethod().fit(hindcast, obs).predict_tercile(hindcast.isel(year=[-1]), obs)
+    assert t.attrs.get("units") == "1", t.attrs

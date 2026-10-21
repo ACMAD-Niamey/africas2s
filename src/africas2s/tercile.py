@@ -25,6 +25,25 @@ import xarray as xr
 from scipy.stats import norm, t as t_dist
 
 
+PROBABILITY_ATTRS = {"units": "1", "long_name": "tercile probability"}
+_PREDICTAND_ATTRS = ("units", "long_name", "standard_name")
+
+
+def as_probability(da):
+    """Label ``da`` as tercile probabilities: ``units="1"`` (CF for a dimensionless
+    quantity) and ``long_name="tercile probability"``.
+
+    xarray >= 2026.2 keeps attrs through comparisons and reductions, so a counting
+    step such as ``(forecast < t33).sum("member") / n`` silently inherits the
+    predictand's ``units`` ("mm") and ``long_name``. Those descriptive attrs are
+    dropped here; any other attrs the constructor set (``method``, ...) are kept.
+    Every tercile-probability constructor in africas2s returns through this.
+    """
+    attrs = {k: v for k, v in da.attrs.items() if k not in _PREDICTAND_ATTRS}
+    da.attrs = {**attrs, **PROBABILITY_ATTRS}
+    return da
+
+
 def _cpt_tercile_probs(loc, t33, t67, dofr, pesd):
     """CPT Student-t below/normal/above probabilities for one forecast field.
 
@@ -79,7 +98,7 @@ def cpt_tercile_forecast(forecast, t33, t67, s2, dofr, leverage=0.0):
          xr.DataArray(p_an, dims=spatial, coords=forecast.coords)],
         dim=xr.IndexVariable("tercile", [0, 1, 2]),
     )
-    return out
+    return as_probability(out)
 
 
 def to_tercile(forecast, obs_climatology, method="counting"):
@@ -118,7 +137,7 @@ def to_tercile(forecast, obs_climatology, method="counting"):
 
     result = xr.concat([p_bn, p_nn, p_an], dim="tercile")
     result["tercile"] = [0, 1, 2]
-    return result
+    return as_probability(result)
 
 
 def to_tercile_cv(cv_predictions, obs, method="bootstrap", leverages=None, n_modes=3,
@@ -153,14 +172,15 @@ def to_tercile_cv(cv_predictions, obs, method="bootstrap", leverages=None, n_mod
     residuals = cv_predictions - obs
 
     if method == "cpt":
-        return _tercile_cpt(cv_predictions, obs, residuals, n, leverages,
-                            n_modes=n_modes, cpt_boundaries=cpt_boundaries)
+        out = _tercile_cpt(cv_predictions, obs, residuals, n, leverages,
+                           n_modes=n_modes, cpt_boundaries=cpt_boundaries)
     elif method == "bootstrap":
-        return _tercile_bootstrap(cv_predictions, obs, residuals)
+        out = _tercile_bootstrap(cv_predictions, obs, residuals)
     elif method == "gaussian_loo":
-        return _tercile_parametric_loo(cv_predictions, obs, residuals, dist="gaussian")
+        out = _tercile_parametric_loo(cv_predictions, obs, residuals, dist="gaussian")
     else:
-        return _tercile_parametric_global(cv_predictions, obs, residuals, n, method)
+        out = _tercile_parametric_global(cv_predictions, obs, residuals, n, method)
+    return as_probability(out)
 
 
 def _tercile_cpt(cv_predictions, obs, residuals, n, leverages, n_modes=3,

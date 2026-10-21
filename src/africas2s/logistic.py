@@ -36,6 +36,8 @@ from __future__ import annotations
 import numpy as np
 import xarray as xr
 
+from .tercile import as_probability
+
 _TERCILE_COORD = [0, 1, 2]  # below, normal, above — matches africas2s.tercile
 
 
@@ -398,4 +400,4 @@ def logistic_forecast(
         },
         name="tercile_forecast",
     )
-    return out
+    return as_probability(out)
