@@ -100,3 +100,49 @@ def test_tercile_uniform_from_climatology(synthetic_obs):
     # Each tercile should get roughly 1/3 of the probability
     for i in range(3):
         assert 0.0 <= float(mean_probs.isel(tercile=i)) <= 1.0
+
+
+# ===================================================================
+# Probabilities are dimensionless, whatever the predictand's units
+# ===================================================================
+#
+# xarray >= 2026.2 keeps attrs through comparisons and reductions, so a
+# counting step such as ``(forecast < t33).sum("member") / n`` silently
+# inherits the predictand's ``units`` ("mm") unless the output is labelled.
+# Every tercile-probability constructor carries ``units="1"`` (CF for a
+# dimensionless quantity) so agents and unit-aware tools never read a
+# probability "in mm".
+
+def _in_mm(da):
+    return da.assign_attrs(units="mm", long_name="precipitation")
+
+
+def test_to_tercile_probabilities_are_dimensionless(synthetic_obs):
+    from africas2s.tercile import to_tercile
+    obs = _in_mm(synthetic_obs)
+    fc = obs.isel(year=slice(0, 5)).rename(year="member")   # ensemble on the obs grid
+    for method in ("counting", "gaussian"):
+        out = to_tercile(fc, obs, method=method)
+        assert out.attrs.get("units") == "1", (method, out.attrs)
+
+
+def test_to_tercile_cv_probabilities_are_dimensionless(synthetic_obs):
+    from africas2s.tercile import to_tercile_cv
+    obs = _in_mm(synthetic_obs)
+    rng = np.random.default_rng(0)
+    cv = _in_mm(obs + rng.normal(0, 5, obs.shape))
+    n = obs.sizes["year"]
+    for method, kw in (("bootstrap", {}), ("gaussian_loo", {}), ("gaussian_pev", {}),
+                       ("cpt", {"leverages": np.full(n, 0.1)})):
+        out = to_tercile_cv(cv, obs, method=method, **kw)
+        assert out.attrs.get("units") == "1", (method, out.attrs)
+
+
+def test_cpt_tercile_forecast_is_dimensionless(synthetic_obs):
+    from africas2s.tercile import cpt_tercile_forecast
+    obs = _in_mm(synthetic_obs)
+    fc = obs.isel(year=-1, drop=True)                        # one map on the obs grid
+    t33 = obs.quantile(1 / 3, dim="year").drop_vars("quantile")
+    t67 = obs.quantile(2 / 3, dim="year").drop_vars("quantile")
+    out = cpt_tercile_forecast(fc, t33, t67, obs.var("year"), dofr=obs.sizes["year"] - 2)
+    assert out.attrs.get("units") == "1", out.attrs

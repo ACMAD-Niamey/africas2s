@@ -24,7 +24,7 @@ AfricaS2S turns coarse GCM seasonal hindcasts/forecasts plus fine-resolution obs
 | GCM hindcast | `(year, member, lat, lon)` | `year` = consecutive integers |
 | GCM forecast | `(member, lat, lon)` | year squeezed out |
 | Observations (predictand) | `(year, lat, lon)` | fine grid |
-| Tercile forecast | `(tercile, lat, lon)` | `tercile=[0,1,2]` = below/normal/above, sums to 1 per valid cell |
+| Tercile forecast | `(tercile, lat, lon)` | `tercile=[0,1,2]` = below/normal/above, sums to 1 per valid cell; carries `units="1"` |
 | CV tercile hindcasts | `(year, tercile, lat, lon)` | |
 
 `lat`/`latitude`/`Y` and `lon`/`longitude`/`X` aliases are accepted, but prefer `lat`/`lon`. **CV years must be consecutive integers** (gap of 1) or CV schemes raise. NaN cells (ocean/dry) propagate cleanly. Rosetta's `fetch(..., year_index=True)` / `assemble()` produce exactly these shapes.

@@ -197,3 +197,10 @@ def test_logit_detrend_kwarg_matches_manual_detrend():
     df = {k: _detrend_index(v, fc[k])[1] for k, v in pred.items()}
     manual = calibrate(dp, obs, method="logit", forecast=df)
     xr.testing.assert_allclose(via_kwarg, manual)
+
+
+def test_probabilities_are_dimensionless(index):
+    """Probabilities carry units "1", never the predictand's."""
+    obs = _make_obs(index, responsive_cells=range(9)).assign_attrs(units="mm")
+    p = logistic_forecast(index, obs, 1.0)
+    assert p.attrs.get("units") == "1", p.attrs

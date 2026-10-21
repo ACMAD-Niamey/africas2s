@@ -122,6 +122,13 @@ def test_downscale_tercile_sums_to_one(files):
     assert out["variables"]["probability"]["max"] <= 1.0
 
 
+def test_tercile_file_is_dimensionless(files):
+    """The written probability carries units "1": a client's describe step must never
+    report a probability in the predictand's units (xarray >= 2026.2 keeps attrs)."""
+    out = server.downscale(files["hind"], files["obs"], method="bcsd", output_type="tercile")
+    assert xr.open_dataarray(out["path"]).attrs.get("units") == "1"
+
+
 def test_downscale_unknown_method_surfaces_message(files):
     with pytest.raises(ToolError, match="nope"):
         server.downscale(files["hind"], files["obs"], method="nope")

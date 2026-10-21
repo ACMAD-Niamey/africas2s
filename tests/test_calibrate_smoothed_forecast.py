@@ -236,3 +236,12 @@ def test_multimodel_hindcast_only_dict_with_forecast_year():
                                  output_type="deterministic",
                                  temporal_sigma="constant", forecast_year=2010)
     np.testing.assert_allclose(via_dict.values, manual.values)
+
+
+def test_tercile_output_is_dimensionless():
+    """Probabilities carry units "1", never the predictand's."""
+    fc, ob = _cube()
+    out = africas2s.calibrate(fc.assign_attrs(units="mm"), ob.assign_attrs(units="mm"),
+                              method="smoothed_regression", output_type="tercile",
+                              temporal_sigma="constant", distribution="normal", forecast_year=2010)
+    assert out.attrs.get("units") == "1", out.attrs

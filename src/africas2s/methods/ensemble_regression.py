@@ -24,6 +24,7 @@ from scipy.stats import norm
 
 from .base import MethodBase
 from .._spatial import spatial_dims
+from ..tercile import as_probability
 
 
 def _spatial_dims(da):
@@ -374,4 +375,4 @@ class EnsembleRegressionMethod(MethodBase):
             dim="tercile",
         )
         out["tercile"] = [0, 1, 2]
-        return out
+        return as_probability(out)

@@ -25,6 +25,7 @@ import numpy as np
 import xarray as xr
 
 from ._spatial import spatial_dims
+from .tercile import as_probability
 
 _TERCILE = xr.IndexVariable("tercile", [0, 1, 2])   # 0=below, 1=normal, 2=above
 
@@ -170,7 +171,7 @@ def combine_terciles(components, weights=None, *, regrid_to=None, renormalize=Tr
         combined = xr.where(np.isfinite(total) & (total > 0), combined / total, np.nan)
         combined = combined.transpose("tercile", "lat", "lon").assign_coords(tercile=_TERCILE)
     combined.name = "tercile_probability"
-    return combined
+    return as_probability(combined)
 
 
 def mask_by_skill(forecast, skill, *, threshold, keep="above"):

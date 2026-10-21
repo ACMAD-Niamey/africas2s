@@ -36,6 +36,7 @@ import numpy as np
 import xarray as xr
 
 from .indices import Index
+from .tercile import as_probability
 from .registry import get_calibrator, register_calibrator
 from ._warnings import quiet_all_nan_slices
 
@@ -1102,6 +1103,7 @@ def _calibrate_smoothed_regression_tercile(predictor, obs, *, forecast, forecast
     out.attrs["constrained"] = bool(constrained)
     out.attrs["temporal_sigma"] = "None" if temporal_sigma is None else str(temporal_sigma)
     out.attrs["out_of_sample"] = str(forecast is not None)
+    out = as_probability(out)
     if verbose:
         target = "out-of-sample forecast" if forecast is not None else f"forecast_year={year}"
         print(f"[calibrate:smoothed_regression] tercile ({distribution}) {target}")
