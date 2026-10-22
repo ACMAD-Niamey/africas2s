@@ -65,7 +65,7 @@ def calibrate(predictor=None, obs=None, *, method, forecast=None,
               forecast_year=None, predictor_hindcast=None,
               predictor_forecast=None, combine="mean", output_type="tercile",
               return_components=False, cv=None, cv_window=1,
-              verbose=False, **method_kwargs):
+              verbose=False, n_jobs=1, **method_kwargs):
     """Calibrate a predictor to tercile probabilities (no resolution change).
 
     Parameters
@@ -95,6 +95,9 @@ def calibrate(predictor=None, obs=None, *, method, forecast=None,
         carrying both the combined map and each model's own post-calibration
         map — so members can be inspected and a subset recombined (e.g. with
         :func:`africas2s.combine_terciles`) without refitting.
+    n_jobs : int
+        Workers for the ``cv="loyo"`` folds (joblib processes). ``1`` runs them in
+        sequence; ``-1`` uses every core. The result is identical either way.
     cv : {None, "loyo"}
         ``"loyo"`` (``ereg``/``logit``, tercile output only) returns the
         leave-year(s)-out CROSS-VALIDATED hindcast instead of the forecast:
@@ -140,7 +143,7 @@ def calibrate(predictor=None, obs=None, *, method, forecast=None,
             method, predictor, obs, forecast=forecast, combine=combine,
             cv_window=cv_window, return_components=return_components,
             verbose=verbose, method_kwargs=method_kwargs,
-        )
+            n_jobs=n_jobs)
     if return_components:
         method_kwargs = dict(method_kwargs, return_components=True)
 
@@ -591,7 +594,7 @@ _calibrate_ereg.supports_deterministic = True
 
 def _calibrate_cv(method, predictor, obs, *, forecast=None, combine="mean",
                   cv_window=1, return_components=False, verbose=False,
-                  method_kwargs=None):
+                  method_kwargs=None, n_jobs=1):
     """Leave-year(s)-out cross-validated hindcast for the calibrate family.
 
     For every obs year: refit on the remaining years (window ``cv_window``)
@@ -614,9 +617,10 @@ def _calibrate_cv(method, predictor, obs, *, forecast=None, combine="mean",
     else:
         models = {name: series for name, series in _as_model_dict(predictor).items()}
 
-    fold_combined = []
-    fold_per = {name: [] for name in models}
-    for train_years, test_year in loyo(years, window=cv_window):
+    fn = get_calibrator(method)
+
+    def _fold(train_years, test_year):
+        """One held-out year: refit on the training years, predict the test year. Independent of every other fold."""
         if method == "ereg":
             avail = {n: (h, None) for n, (h, _f) in models.items()
                      if test_year in set(h.year.values.tolist())}
@@ -629,16 +633,34 @@ def _calibrate_cv(method, predictor, obs, *, forecast=None, combine="mean",
             fc = {n: models[n].sel(year=test_year)
                   for n in avail}
         if not avail:
-            continue
-        fn = get_calibrator(method)
+            return None
         res = fn(avail, obs.sel(year=[y for y in train_years]),
                  forecast=fc, forecast_year=test_year, combine=combine,
                  return_components=True, verbose=False, **method_kwargs)
-        fold_combined.append(res.combined.expand_dims(year=[test_year]))
-        for n, m in res.per_model.items():
-            fold_per[n].append(m.expand_dims(year=[test_year]))
         if verbose:
             print(f"[calibrate:cv] {test_year}: {len(avail)} model(s)")
+        return (test_year, res.combined.expand_dims(year=[test_year]),
+                {n: m.expand_dims(year=[test_year]) for n, m in res.per_model.items()})
+
+    folds = list(loyo(years, window=cv_window))
+    if n_jobs not in (None, 0, 1) and len(folds) > 1:
+        # The folds are independent refits, so they run as separate processes; the
+        # order of the result is restored by sorting on the held-out year below.
+        from joblib import Parallel, delayed
+        results = Parallel(n_jobs=n_jobs, prefer="processes")(
+            delayed(_fold)(tr, te) for tr, te in folds)
+    else:
+        results = [_fold(tr, te) for tr, te in folds]
+
+    fold_combined = []
+    fold_per = {name: [] for name in models}
+    for r in results:
+        if r is None:
+            continue
+        _, comb, per = r
+        fold_combined.append(comb)
+        for n, m in per.items():
+            fold_per[n].append(m)
 
     if not fold_combined:
         raise ValueError("calibrate(cv='loyo'): no fold produced a forecast.")
