@@ -68,6 +68,11 @@ REGIONS: dict[str, dict[str, float]] = {
     "setio": dict(south=-10, north=0, west=90, east=110),    # SE Tropical Indian Ocean
     # --- Tropical mean, the RONI reference band (L'Heureux et al. 2024) ---
     "tropics": dict(south=-20, north=20, west=0, east=360),
+    # --- South Atlantic Ocean Dipole poles (Nnamchi et al. 2011) ---
+    "saod_ne": dict(south=-15, north=0, west=10, east=20),     # north-east pole, Gulf of Guinea / Angola coast
+    "saod_sw": dict(south=-40, north=-25, west=330, east=350), # south-west pole, 30W-10W
+    # --- South-west Indian Ocean (Mozambique Channel to Madagascar's east) ---
+    "swio": dict(south=-35, north=-20, west=30, east=50),
     # --- Equatorial West Pacific convection box ---
     # The region whose July rainfall discriminates wet from dry Ethiopian
     # Kiremt seasons via the Walker circulation (Funk, CHC 2026).
@@ -152,6 +157,17 @@ _INDICES: dict[str, _Spec] = {
     "dmi": _Spec(
         ("wtio", "setio"), _dmi_combine, transform="anomaly", weights="cos_lat",
         description="Dipole Mode Index (Indian Ocean Dipole), °C.",
+    ),
+    "saod": _Spec(
+        ("saod_ne", "saod_sw"), lambda a: a["saod_ne"] - a["saod_sw"], transform="anomaly", weights="cos_lat",
+        description=(
+            "South Atlantic Ocean Dipole: north-east pole (15S-0, 10E-20E) minus south-west pole "
+            "(40S-25S, 30W-10W) SST anomaly, C (Nnamchi et al. 2011)."
+        ),
+    ),
+    "swio": _Spec(
+        ("swio",), lambda a: a["swio"], transform="anomaly", weights="cos_lat",
+        description="South-west Indian Ocean SST anomaly (35S-20S, 30E-50E), C.",
     ),
     "wtio": _Spec(
         ("wtio",), lambda a: a["wtio"], transform="anomaly", weights="cos_lat",
