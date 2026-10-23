@@ -1,3 +1,9 @@
+from importlib.metadata import PackageNotFoundError as _PNF, version as _version
+try:
+    __version__ = _version("africas2s")
+except _PNF:                     # source checkout without metadata
+    __version__ = "0.0.0"
+
 from .downscale import downscale
 from .optimize import optimize
 from .ensemble import ensemble, pool_ensembles
