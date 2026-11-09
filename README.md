@@ -219,6 +219,24 @@ The probabilistic mode additionally calibrates the forecast spread and, for prec
 
 Multi-model input uses the same `{model: (hindcast, forecast)}` shape as `ereg`, but where `ereg` calibrates each model separately and averages the tercile maps, `smoothed_regression` pools the members across models into one super-ensemble (with reindexed member ids) and calibrates that, matching the Kharin et al. experiment design. Hindcast years are intersected across models and with the obs before fitting.
 
+#### The ICPAC / CCCma engine (`engine="cccma"`)
+
+ICPAC's operational "Kharin method" is ECCC/CCCma's `s2d_calibration` package ([gcm_calibration_ICPAC](https://gitlab.com/climate-prediction-public/gcm_calibration_ICPAC)), whose estimator differs from the paper's experiment: the rescaling coefficient minimises the Gaussian CRPS by golden-section search, the spread is the climatological variance-preserving `sqrt(total − signal·F²)`, the tercile constant is sample-size adjusted, and precipitation goes through an L-moment gamma fit. `engine="cccma"` is a bit-for-bit port of that engine (`africas2s.methods.cccma_calibration`), driven by the same kwargs plus its `config.yml` knobs:
+
+```python
+probs = africas2s.calibrate(
+    {"GEM-NEMO": (hind_gem, fcst_gem), "CanESM": (hind_can, fcst_can)},   # stacked, NaN-padded members
+    obs,
+    method="smoothed_regression", engine="cccma",
+    output_type="tercile",
+    temporal_sigma=2,            # None -> per-season (SCGA), 2 -> smoothed (SCGF), "constant" -> year-round (SCGC)
+    distribution="gamma",        # the reference's gamma_transform
+    obs_variance_width=1, fcst_variance_width=1, golden_tolerance=1e-3, small=1e-6, small_ic=-1e-9,
+)
+```
+
+The `season` axis must hold the reference's 12 initialisation months; a single-month forecast is reindexed onto them (other seasons come back NaN). `tests/test_cccma_parity.py` checks every coefficient and probability against the reference package's own output (fixtures from `scripts/reproduce_cccma.py`): byte-for-byte on the platform the reference was run on, and to 1e-9 on other platforms, whose libm/SIMD `exp`/`erf` differ by an ulp.
+
 Runnable examples: `examples/demo_ensemble_regression.py` (eReg) and `examples/demo_logistic_wvg.py` (logit).
 
 ## MCP server

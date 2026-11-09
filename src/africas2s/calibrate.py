@@ -858,9 +858,39 @@ def _pool_smoothed_super_ensemble(predictor, forecast):
 def _calibrate_smoothed_regression(predictor, obs, *, forecast=None, forecast_year=None,
                                    combine="mean", output_type="deterministic",
                                    temporal_sigma=None, distribution="normal",
-                                   constrained=True, verbose=False, **_):
+                                   constrained=True, engine="kharin2017", verbose=False,
+                                   **engine_kwargs):
     """Kharin et al. (2017) postprocessing. predictor: ensemble hindcast
     (season, year, member, lat, lon); obs: (season, year, lat, lon), same grid.
+
+    ``engine`` selects the implementation:
+
+    - ``"kharin2017"`` (default): the paper's experiment design described below —
+      regression coefficient ``a = Cov/Var`` (plus a spread coefficient ``b`` for
+      tercile output), Gaussian-smoothed across the seasonal cycle with
+      ``scipy.ndimage.gaussian_filter1d``, per-year ensemble spread, method-of-moments
+      gamma.
+    - ``"cccma"``: ECCC/CCCma's operational ``s2d_calibration`` engine as deployed at
+      ICPAC (``africas2s.methods.cccma_calibration``), reproduced bit-for-bit: the
+      rescaling coefficient minimises the Gaussian CRPS by golden-section search, the
+      spread is the climatological ``sqrt(total - signal * F^2)`` so the calibrated
+      climatology keeps the observed variance, the tercile constant is sample-size
+      adjusted, and the gamma transform is an L-moment fit. The same kwargs steer it:
+      ``temporal_sigma=None`` → one coefficient per season (reference ``SCGA``), a
+      number → the per-season coefficients smoothed with the reference's cyclic
+      Gaussian of that width (``SCGF``; a 12-vector gives a custom filter), and
+      ``"constant"`` → one year-round CRPS-optimal coefficient (``SCGC``);
+      ``distribution="gamma"`` → the reference's ``gamma_transform``. Extra knobs
+      mirror its ``config.yml``: ``obs_variance_width=1``, ``fcst_variance_width=1``
+      (``Gaussian_width`` ``obsVar``/``fcstVar``), ``golden_tolerance=1e-3``,
+      ``small=1e-6``, ``small_ic=None`` (``SMALLIC``; ``None`` → ``-1e-9`` with gamma,
+      ``0`` without). ``constrained`` is not used by this engine. The ``season`` axis
+      must hold the reference's 12 initialisation months (or be absent, which gives the
+      reference's single-season path: ``temporal_sigma="constant"`` only). Multi-model
+      dicts are stacked on a ``model`` axis with NaN-padded members (the reference's
+      ``NENS_per_model`` layout) instead of pooled into one super-ensemble. Deterministic
+      output is the reference's ``EMG`` field: the rescaled multi-model anomaly added to
+      the obs climatology and mapped back through the obs gamma.
     temporal_sigma: None (per-season) | float (Gaussian smoothing) | 'constant' (one
     coefficient for the year; for output_type="tercile" this is the mean of the
     per-season a/b coefficients, matching the Kharin et al. (2017) probabilistic
@@ -916,6 +946,16 @@ def _calibrate_smoothed_regression(predictor, obs, *, forecast=None, forecast_ye
         raise NotImplementedError(
             f"smoothed_regression: unknown output_type={output_type!r}. Supported "
             "output_type values are 'deterministic' and 'tercile'."
+        )
+    if engine == "cccma":
+        return _calibrate_smoothed_regression_cccma(
+            predictor, obs, forecast=forecast, forecast_year=forecast_year,
+            output_type=output_type, temporal_sigma=temporal_sigma,
+            distribution=distribution, verbose=verbose, **engine_kwargs)
+    if engine != "kharin2017":
+        raise ValueError(
+            f"smoothed_regression: unknown engine={engine!r}; expected 'kharin2017' "
+            "(the paper's experiment) or 'cccma' (ECCC/CCCma s2d_calibration, ICPAC)."
         )
     predictor, forecast = _pool_smoothed_super_ensemble(predictor, forecast)
     if forecast is not None and forecast_year is not None:
@@ -1129,4 +1169,138 @@ def _calibrate_smoothed_regression_tercile(predictor, obs, *, forecast, forecast
     if verbose:
         target = "out-of-sample forecast" if forecast is not None else f"forecast_year={year}"
         print(f"[calibrate:smoothed_regression] tercile ({distribution}) {target}")
+    return out
+
+
+# --- smoothed_regression, engine="cccma" (ECCC/CCCma s2d_calibration, ICPAC) ---------
+
+_CCCMA_KNOBS = ("obs_variance_width", "fcst_variance_width", "golden_tolerance",
+                "small", "small_ic")
+
+
+def _stack_cccma_models(predictor, forecast):
+    """Resolve smoothed_regression's entry shapes for the cccma engine: a bare DataArray
+    passes through; an ereg-style ``{model: (hindcast, forecast)}`` dict (or
+    ``{model: hindcast}`` + ``forecast={model: forecast}``) is stacked on a ``model``
+    axis with NaN-padded, positionally renumbered members (the reference's multi-model
+    layout, counted by ``NENS_per_model``), hindcast years intersected first."""
+    from .methods import cccma_calibration as cc
+
+    if isinstance(predictor, xr.DataArray) and not isinstance(forecast, dict):
+        fc = None if forecast is None else _normalize_smoothed_forecast(forecast)
+        return predictor, fc
+    models = _split_ereg_predictor(predictor, forecast, method="smoothed_regression")
+    with_fcst = [name for name, (_h, f) in models.items() if f is not None]
+    if with_fcst and len(with_fcst) != len(models):
+        missing = sorted(set(models) - set(with_fcst))
+        raise ValueError(
+            f"calibrate(method='smoothed_regression', engine='cccma'): models {missing} "
+            "have no forecast — every model needs one (or none, for hindcast-mode "
+            "`forecast_year` targeting)."
+        )
+    hindcasts = {name: h for name, (h, _f) in models.items()}
+    common = None
+    for h in hindcasts.values():
+        common = h["year"].values if common is None else np.intersect1d(common, h["year"].values)
+    if common.size == 0:
+        raise ValueError(
+            "calibrate(method='smoothed_regression', engine='cccma'): the model "
+            "hindcasts share no common years."
+        )
+    hind = cc.stack_models({name: h.sel(year=common) for name, h in hindcasts.items()})
+    fc = None
+    if with_fcst:
+        fc = cc.stack_models({name: _normalize_smoothed_forecast(f) for name, (_h, f) in models.items()})
+    return hind, fc
+
+
+def _calibrate_smoothed_regression_cccma(predictor, obs, *, forecast, forecast_year,
+                                         output_type, temporal_sigma, distribution,
+                                         verbose=False, **kwargs):
+    """``engine="cccma"`` of :func:`_calibrate_smoothed_regression`: fit
+    :func:`africas2s.methods.cccma_calibration.fit` on the hindcast and apply it to an
+    out-of-sample ``forecast`` or read the in-sample result for ``forecast_year``."""
+    from .methods import cccma_calibration as cc
+
+    unknown = set(kwargs) - set(_CCCMA_KNOBS) - {"constrained", "combine"}
+    if unknown:
+        raise TypeError(
+            "smoothed_regression engine='cccma' got unexpected keyword argument(s) "
+            f"{sorted(unknown)}; the engine's knobs are {list(_CCCMA_KNOBS)}."
+        )
+    if distribution not in ("normal", "gamma"):
+        raise ValueError(
+            f"smoothed_regression engine='cccma': unknown distribution={distribution!r} "
+            "(expected 'normal' or 'gamma')."
+        )
+    if temporal_sigma is None:
+        coefficient, width = "independent", 2
+    elif isinstance(temporal_sigma, str):
+        if temporal_sigma != "constant":
+            raise ValueError(
+                f"smoothed_regression: temporal_sigma={temporal_sigma!r} is not understood; "
+                "use None, a number (smoothing width), a 12-vector of filter weights, or "
+                "'constant'."
+            )
+        coefficient, width = "constant", 2
+    else:
+        coefficient, width = "smoothed", temporal_sigma
+
+    hindcast, fc = _stack_cccma_models(predictor, forecast)
+    if fc is not None and forecast_year is not None:
+        raise ValueError(
+            "smoothed_regression: `forecast` and `forecast_year` are mutually "
+            "exclusive — pass `forecast_year` to target a hindcast year (with "
+            "hindcast-only predictors), or `forecast` to apply the hindcast fit "
+            "to an out-of-sample ensemble."
+        )
+    common_years = np.intersect1d(hindcast["year"].values, obs["year"].values)
+    if common_years.size == 0:
+        raise ValueError(
+            "smoothed_regression: predictor hindcast and obs share no common years."
+        )
+    if hindcast.sizes["year"] != common_years.size:
+        hindcast = hindcast.sel(year=common_years)
+    if obs.sizes["year"] != common_years.size:
+        obs = obs.sel(year=common_years)
+
+    fit = cc.fit(
+        hindcast, obs, gamma_transform=(distribution == "gamma"), coefficient_width=width,
+        obs_variance_width=kwargs.get("obs_variance_width", 1),
+        fcst_variance_width=kwargs.get("fcst_variance_width", 1),
+        golden_tolerance=kwargs.get("golden_tolerance", 1e-3),
+        small=kwargs.get("small", 1e-6), small_ic=kwargs.get("small_ic", None),
+    )
+    if fc is not None:
+        fc = _align_smoothed_forecast_seasons(fc, hindcast)
+        if output_type == "tercile":
+            out = cc.predict_tercile(fit, fc, coefficient)
+        else:
+            out = cc.predict_deterministic(fit, fc, coefficient)
+        target = "out-of-sample forecast"
+    else:
+        year = int(forecast_year) if forecast_year is not None else int(hindcast["year"].max())
+        hindcast_years = set(int(y) for y in hindcast["year"].values)
+        if year not in hindcast_years:
+            raise ValueError(
+                f"forecast_year={year} is not in the hindcast years "
+                f"[{min(hindcast_years)}..{max(hindcast_years)}]. Pass the target's "
+                "ensemble via `forecast=` to apply the hindcast fit out-of-sample."
+            )
+        if output_type == "tercile":
+            out = cc.hindcast_tercile(fit, coefficient, year=year)
+        else:
+            out = cc.hindcast_deterministic(fit, coefficient, year=year)
+        target = f"forecast_year={year}"
+    out.attrs["method"] = "smoothed_regression"
+    out.attrs["engine"] = "cccma"
+    out.attrs["coefficient"] = coefficient
+    out.attrs["distribution"] = distribution
+    out.attrs["temporal_sigma"] = "None" if temporal_sigma is None else str(temporal_sigma)
+    out.attrs["out_of_sample"] = str(fc is not None)
+    if output_type == "tercile":
+        out = as_probability(out)
+    if verbose:
+        print(f"[calibrate:smoothed_regression] engine=cccma {output_type} "
+              f"coefficient={coefficient} ({distribution}) {target}")
     return out
