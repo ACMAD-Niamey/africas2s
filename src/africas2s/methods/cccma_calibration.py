@@ -9,7 +9,9 @@ ported from ECCC/CCCma's ``s2d_calibration`` package as deployed at ICPAC
 This module is a *numerical* port, not a re-derivation: every reduction, dtype
 promotion, scalar type and operation order of the reference is kept so that, for the
 same input arrays, the fitted coefficients and the tercile probabilities come out
-bit-for-bit identical to the reference package (see ``tests/test_cccma_parity.py``).
+bit-for-bit identical to the reference package on the same platform (see
+``tests/test_cccma_parity.py``; across platforms libm/SIMD ``exp``/``erf`` differ by
+an ulp, so the agreement there is ~1e-15 relative rather than exact).
 Where the reference makes a choice that looks odd in isolation (e.g. the float32
 ``X.astype('float32')`` after the gamma transform, the ``np.float64`` tercile constant
 promoting float32 anomalies, the ``python float`` mid-bracket in the per-season golden

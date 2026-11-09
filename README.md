@@ -235,7 +235,7 @@ probs = africas2s.calibrate(
 )
 ```
 
-The `season` axis must hold the reference's 12 initialisation months; a single-month forecast is reindexed onto them (other seasons come back NaN). `tests/test_cccma_parity.py` checks every coefficient and probability byte-for-byte against the reference package's own output (fixtures from `scripts/reproduce_cccma.py`).
+The `season` axis must hold the reference's 12 initialisation months; a single-month forecast is reindexed onto them (other seasons come back NaN). `tests/test_cccma_parity.py` checks every coefficient and probability against the reference package's own output (fixtures from `scripts/reproduce_cccma.py`): byte-for-byte on the platform the reference was run on, and to 1e-9 on other platforms, whose libm/SIMD `exp`/`erf` differ by an ulp.
 
 Runnable examples: `examples/demo_ensemble_regression.py` (eReg) and `examples/demo_logistic_wvg.py` (logit).
 

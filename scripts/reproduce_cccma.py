@@ -22,7 +22,10 @@ rescaling coefficients, smoothed variances, in-sample and forecast probabilities
 ensemble means, with dims and coords in the ``__meta__`` JSON entry.
 
 Note: the reference's season-0 smoothed values depend on dask task placement (see
-``tests/test_cccma_parity.py``), so two regenerations can differ there by an ulp.
+``tests/test_cccma_parity.py``), so two regenerations can differ there by an ulp. The
+bundle records the platform it was made on: the parity test demands byte-equality only
+there (libm/SIMD ``exp``/``erf`` differ by an ulp between x86 glibc and arm64 macOS)
+and a 1e-9 tolerance elsewhere.
 """
 import argparse
 import json
@@ -161,6 +164,10 @@ def export(name, work, out, cfg):
         for c in da.coords:
             if c not in meta["coords"] and da[c].ndim == 1:
                 meta["coords"][c] = da[c].values.tolist()
+    import platform
+    meta["platform"] = {"system": platform.system(), "machine": platform.machine(),
+                        "reference_env": {"python": platform.python_version(), "numpy": np.__version__,
+                                          "scipy": __import__("scipy").__version__, "xarray": xr.__version__}}
     arrays["__meta__"] = np.array(json.dumps(meta))
     out.mkdir(parents=True, exist_ok=True)
     target = out / f"{name}.npz"
