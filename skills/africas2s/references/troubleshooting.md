@@ -37,6 +37,11 @@
 | `ValueError` from `complete`: climatology must have 'year' and 'step' dims | The analog source / climatology must be season-aligned — run it through `africas2s.seasonal_stack(...)` first. See `references/analog-completion.md` |
 | `ValueError` from `percentile_of` / `frequency_below`: value must not / must carry the reduction dim | `percentile_of`/`rank_of_record` take a `values` array *without* `dim`; `frequency_below` takes a `sample` array *with* `dim`. See `references/analog-completion.md` |
 | `KeyError`: Unknown index | `Index.named(...)` accepts `wvg, wvg2, nino12, nino3, nino34, nino4, oni, roni, dmi (iod), wtio, setio, wio, wpac` — call `africas2s.indices.Index.list_named()` for the current set |
+| `ValueError`: smoothed_regression: unknown engine | `engine` is `"kharin2017"` (default) or `"cccma"` (ICPAC/CCCma `s2d_calibration` port) |
+| `TypeError`: smoothed_regression engine='cccma' got unexpected keyword argument(s) | The cccma engine's knobs are `obs_variance_width`, `fcst_variance_width`, `golden_tolerance`, `small`, `small_ic` (plus the shared `temporal_sigma`, `distribution`); `constrained` is accepted but ignored |
+| `ValueError`: cccma: the season axis must hold the 12 initialisation months | `engine="cccma"` mirrors the reference's 12-month cyclic smoothing — pass all 12 seasons, or drop the `season` dim for its single-season path (`temporal_sigma="constant"` only) |
+| `ValueError`: cccma: the forecast needs the fit's season axis | Reindex a single-month forecast onto the hindcast's 12 seasons (`fc.expand_dims(season=hind.season)` then mask the others NaN); `calibrate()` does this when the forecast carries a `season` coord |
+| `ValueError`: cccma: coefficient=... needs a season axis | Without a `season` dim only `"constant"`/`"none"` exist (the reference's decadal path) |
 
 If a "wrong result" (rather than an error) is the problem, first check the discipline rules in `metrics-and-terciles.md` — leakage and metric/forecast mismatches produce plausible-looking but invalid skill numbers.
 
