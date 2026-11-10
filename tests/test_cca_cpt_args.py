@@ -263,3 +263,96 @@ def test_select_modes_raises_when_goodness_is_never_finite(
             y_eof_range=(1, 1),
             cca_range=(1, 1),
         )
+
+
+# ── mode search uses the same settings as the fit ────────────────────────────
+
+_PARITY = dict(standardize=True, lat_weights="cpt", sign_convention="cpt",
+               y_reconstruction="cpt")
+
+
+def test_select_modes_builds_trial_models_with_method_kwargs(
+    monkeypatch, synthetic_gcm_hindcast, synthetic_obs
+):
+    """Every trial CCA in the search is built with the caller's model settings,
+    and the folds come from the caller's CV scheme."""
+    import africas2s.methods.cca as C
+    from africas2s.cv import loyo_cyclic
+
+    seen_kwargs, seen_windows = [], []
+    real = C.CCAMethod
+
+    def spy_method(**kwargs):
+        seen_kwargs.append(kwargs)
+        return real(**kwargs)
+
+    def spy_cv(years, window=1):
+        seen_windows.append(window)
+        return loyo_cyclic(years, window=window)
+
+    monkeypatch.setattr(C, "CCAMethod", spy_method)
+    years = [int(y) for y in synthetic_obs.year.values]
+    C.select_modes(
+        synthetic_gcm_hindcast, synthetic_obs, years, window=3,
+        x_eof_range=(1, 2), y_eof_range=(1, 2), cca_range=(1, 1),
+        method_kwargs={**_PARITY, "x_eof_modes": 99, "tailoring": "Anomaly"},
+        cv=spy_cv,
+    )
+    assert seen_windows == [3]
+    assert seen_kwargs
+    for kwargs in seen_kwargs:
+        assert {k: kwargs[k] for k in _PARITY} == _PARITY
+        assert kwargs["x_eof_modes"] in (1, 2)      # the searched value, not the caller's 99
+        assert "tailoring" not in kwargs            # only model-shaping keys are forwarded
+
+
+def test_select_modes_defaults_unchanged(synthetic_gcm_hindcast, synthetic_obs):
+    """No method_kwargs / cv is the same as passing the defaults explicitly."""
+    from africas2s.cv import loyo
+    from africas2s.methods.cca import select_modes
+
+    years = [int(y) for y in synthetic_obs.year.values]
+    kw = dict(window=1, x_eof_range=(1, 3), y_eof_range=(1, 3), cca_range=(1, 2))
+    a = select_modes(synthetic_gcm_hindcast, synthetic_obs, years, **kw)
+    b = select_modes(synthetic_gcm_hindcast, synthetic_obs, years, **kw,
+                     method_kwargs={}, cv=loyo)
+    assert a[:3] == b[:3]
+    assert a[3] == b[3]
+    np.testing.assert_array_equal(a[4].values, b[4].values)
+
+
+def test_select_modes_settings_change_the_ranking_input(synthetic_gcm_hindcast, synthetic_obs):
+    """The parity settings reach the trial fit: its CV predictions differ."""
+    from africas2s.methods.cca import select_modes
+
+    years = [int(y) for y in synthetic_obs.year.values]
+    kw = dict(window=1, x_eof_range=(2, 2), y_eof_range=(2, 2), cca_range=(1, 1))
+    plain = select_modes(synthetic_gcm_hindcast, synthetic_obs, years, **kw)
+    parity = select_modes(synthetic_gcm_hindcast, synthetic_obs, years, **kw,
+                          method_kwargs=_PARITY)
+    assert not np.allclose(plain[4].values, parity[4].values, equal_nan=True)
+
+
+def test_seasonal_mme_forwards_fit_settings_to_mode_search(
+    monkeypatch, synthetic_gcm_hindcast, synthetic_obs
+):
+    """seasonal_mme hands the search the model settings and CV scheme of the fit."""
+    import africas2s.methods.cca as C
+    from africas2s.cv import loyo_cyclic
+
+    captured = {}
+
+    def fake_select_modes(gcm, obs, years, window, x_eof_range, y_eof_range,
+                          cca_range, fallback_modes=None, *, method_kwargs=None, cv=None):
+        captured.update(method_kwargs=method_kwargs, cv=cv)
+        return 2, 2, 1, 0.3, None, None
+
+    monkeypatch.setattr(C, "select_modes", fake_select_modes)
+    seasonal_mme(
+        _tracks(synthetic_gcm_hindcast), synthetic_obs,
+        method="cca", cv="loyo_cyclic",
+        cpt_args={"mode_selection": "cpt", "crossvalidation_window": 3, **_PARITY},
+        verbose=False,
+    )
+    assert captured["method_kwargs"] == _PARITY
+    assert captured["cv"] is loyo_cyclic

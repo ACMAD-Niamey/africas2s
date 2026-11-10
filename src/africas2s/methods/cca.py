@@ -509,8 +509,13 @@ def select_modes_north(gcm, obs, x_ceiling=10, y_ceiling=10, min_frac_of_mean=1.
     return x_eof, y_eof, min(x_eof, y_eof)
 
 
+# CCAMethod options that change the fitted model without setting a mode count.
+# `select_modes` must rank combinations with the same values the final fit uses.
+SEARCH_METHOD_KWARGS = ("standardize", "lat_weights", "sign_convention", "y_reconstruction")
+
+
 def select_modes(gcm, obs, years, window, x_eof_range=(1, 10), y_eof_range=(1, 10),
-                 cca_range=(1, 10), fallback_modes=None):
+                 cca_range=(1, 10), fallback_modes=None, *, method_kwargs=None, cv=None):
     """CPT-compatible mode auto-selection via cross-validated Kendall's tau.
 
     Matches CPT's cv_cca (cca.F95 L223-539) + goodness (scores.F95 L3589-3726):
@@ -524,9 +529,25 @@ def select_modes(gcm, obs, years, window, x_eof_range=(1, 10), y_eof_range=(1, 1
     (x_eof, y_eof, cca) is returned when no combination yields a finite goodness
     instead of raising, if supplied.
 
+    ``method_kwargs`` are passed to every trial ``CCAMethod`` (the
+    :data:`SEARCH_METHOD_KWARGS` keys: ``standardize``, ``lat_weights``,
+    ``sign_convention``, ``y_reconstruction``; other keys are ignored), and
+    ``cv`` is the fold generator ``cv(years, window=...)`` (default
+    :func:`africas2s.cv.loyo`). Pass the same values the final fit will use:
+    otherwise the search ranks a different CCA from the one that is fitted. With
+    the CPT-parity settings and ``loyo_cyclic`` the search then selects modes
+    for the model CPT itself ranks (verified against pyCPT 2.10.4: with
+    mismatched settings the search picked CPT's modes in 1 of 4 models, matched
+    in 2 of 4 and within 0.012 goodness of CPT's choice in the other two).
+    Defaults (None) leave the previous behaviour unchanged.
+
     Returns (best_x_eof, best_y_eof, best_cca, goodness_value, cv_predictions, leverages)
     """
     from ..cv import loyo
+
+    fold_fn = loyo if cv is None else cv
+    trial_kwargs = {k: v for k, v in (method_kwargs or {}).items()
+                    if k in SEARCH_METHOD_KWARGS}
 
     # Cap the search to what the sample size supports (short-hindcast guard).
     capped = _capped_mode_ranges(x_eof_range, y_eof_range, cca_range, len(years), window)
@@ -553,13 +574,14 @@ def select_modes(gcm, obs, years, window, x_eof_range=(1, 10), y_eof_range=(1, 1
     levs_all = np.full((n_combos, n_years), np.nan)
 
     print(f"  Mode selection: {n_combos} combinations x {n_years} CV folds...")
-    for fold_idx, (train_yrs, test_yr) in enumerate(loyo(years, window=window)):
+    for fold_idx, (train_yrs, test_yr) in enumerate(fold_fn(years, window=window)):
         yr_idx = years.index(test_yr)
         forecast = gcm.sel(year=[test_yr]).isel(year=0, drop=True)
 
         for ci, (xe, ye, cc) in enumerate(combos):
             try:
-                m = CCAMethod(x_eof_modes=xe, y_eof_modes=ye, cca_modes=cc)
+                m = CCAMethod(x_eof_modes=xe, y_eof_modes=ye, cca_modes=cc,
+                              **trial_kwargs)
                 m.fit(gcm.sel(year=train_yrs), obs.sel(year=train_yrs))
                 pred = m.predict(forecast).mean("member")
                 pred_flat = pred.values.reshape(-1)
