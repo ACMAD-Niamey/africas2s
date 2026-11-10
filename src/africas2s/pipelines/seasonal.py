@@ -619,6 +619,18 @@ def _per_model_cv(hcst, fcst, obs_sliced, *, method, cv_scheme, cpt_args,
             "mode_selection_fallback",
             (x_range[0], y_range[0], cca_range[0]),
         )
+        # The search must rank the same CCA the fit below builds: forward the
+        # model-shaping settings (CPT-parity knobs, standardize) and the CV
+        # scheme. Only passed when they differ from select_modes' defaults, so a
+        # default call is unchanged.
+        from ..methods.cca import SEARCH_METHOD_KWARGS
+        search_extra = {}
+        search_method_kwargs = {k: method_kwargs[k] for k in SEARCH_METHOD_KWARGS
+                                if k in method_kwargs}
+        if search_method_kwargs:
+            search_extra["method_kwargs"] = search_method_kwargs
+        if cv_scheme != "loyo":
+            search_extra["cv"] = cv_fn
         xe, ye, cc, goodness, _cv, _lev = select_modes(
             hcst_sliced,
             obs_sliced,
@@ -628,6 +640,7 @@ def _per_model_cv(hcst, fcst, obs_sliced, *, method, cv_scheme, cpt_args,
             y_eof_range=y_range,
             cca_range=cca_range,
             fallback_modes=fallback_modes,
+            **search_extra,
         )
         method_kwargs.update({
             "x_eof_modes": xe,
