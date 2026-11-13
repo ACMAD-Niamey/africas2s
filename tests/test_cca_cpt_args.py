@@ -356,3 +356,118 @@ def test_seasonal_mme_forwards_fit_settings_to_mode_search(
     )
     assert captured["method_kwargs"] == _PARITY
     assert captured["cv"] is loyo_cyclic
+
+
+# ── CPT's over-fitting exclusion and CPT's Kendall tau in the mode search ────
+
+def test_kendall_tau_cpt_equals_tau_b_without_ties():
+    from scipy.stats import kendalltau
+    from africas2s.methods.cca import _kendall_tau_cpt
+
+    rng = np.random.default_rng(0)
+    for _ in range(5):
+        p, o = rng.normal(size=20), rng.normal(size=20)
+        assert _kendall_tau_cpt(p, o) == pytest.approx(kendalltau(p, o).statistic, abs=1e-12)
+
+
+def test_kendall_tau_cpt_tie_rules_match_cpt_two_afc_cc():
+    """Literal port of CPT scores.F95 two_afc_cc as the reference."""
+    from africas2s.methods.cca import _kendall_tau_cpt
+
+    def fortran_sign_one(x):          # Fortran Sign(one, x): +1 for x >= 0
+        return 1.0 if x >= 0 else -1.0
+
+    def reference(pred, obs):
+        n, afc = len(obs), 0.0
+        for k in range(n - 1):
+            for l in range(k + 1, n):
+                if obs[k] != obs[l] or pred[k] != pred[l]:
+                    afc += abs(fortran_sign_one(obs[k] - obs[l])
+                               + fortran_sign_one(pred[k] - pred[l])) / 2.0
+                else:
+                    afc += 0.5
+        return 2.0 * afc / (n * (n - 1) / 2) - 1.0
+
+    obs = np.array([0.0, 0.0, 0.0, 1.2, 0.0, 3.4, 0.5, 0.0, 0.5])    # ties, as in a dry cell
+    pred = np.array([0.1, 0.4, 0.1, 0.9, 0.3, 0.2, 0.8, 0.0, 0.7])   # one tie shared with obs
+    assert _kendall_tau_cpt(pred, obs) == pytest.approx(reference(pred, obs), abs=1e-12)
+
+    from scipy.stats import kendalltau
+    assert _kendall_tau_cpt(pred, obs) != pytest.approx(kendalltau(pred, obs).statistic, abs=1e-6)
+
+
+def _short_case(synthetic_gcm_hindcast, synthetic_obs, n=9):
+    years = [int(y) for y in synthetic_obs.year.values][:n]
+    return synthetic_gcm_hindcast.sel(year=years), synthetic_obs.sel(year=years), years
+
+
+def test_select_modes_excludes_overfitted_pairs(monkeypatch, synthetic_gcm_hindcast, synthetic_obs):
+    """A pair whose modes fit a fold's training years exactly (canonical
+    correlation 1) cannot win, however good its CV goodness looks."""
+    import africas2s.methods.cca as C
+
+    gcm, obs, years = _short_case(synthetic_gcm_hindcast, synthetic_obs)
+    # 8 training years; (4, 4) spans the 7 centred degrees of freedom -> mu == 1
+    monkeypatch.setattr(C, "_capped_mode_ranges", lambda x, y, c, n, w: (tuple(x), tuple(y), tuple(c)))
+    kw = dict(window=1, x_eof_range=(4, 4), y_eof_range=(4, 4), cca_range=(1, 1))
+
+    m = C.CCAMethod(x_eof_modes=4, y_eof_modes=4, cca_modes=1)
+    m.fit(gcm.sel(year=years[1:]), obs.sel(year=years[1:]))
+    assert m.mu_full_.max() > 1 - C._OVERFIT_TOL          # the premise: this pair over-fits
+    assert len(m.mu_full_) == 4 and len(m.mu_) == 1
+
+    off = C.select_modes(gcm, obs, years, **kw, overfit_check=False)
+    assert off[:3] == (4, 4, 1) and np.isfinite(off[3])
+    with pytest.raises(ValueError, match="over-fitted"):
+        C.select_modes(gcm, obs, years, **kw)
+    wide = C.select_modes(gcm, obs, years, window=1, x_eof_range=(1, 4), y_eof_range=(1, 4),
+                          cca_range=(1, 1))
+    assert wide[:2] != (4, 4)
+
+
+def test_select_modes_overfit_check_inactive_when_nothing_overfits(
+    synthetic_gcm_hindcast, synthetic_obs
+):
+    from africas2s.methods.cca import select_modes
+
+    years = [int(y) for y in synthetic_obs.year.values]
+    kw = dict(window=1, x_eof_range=(1, 3), y_eof_range=(1, 3), cca_range=(1, 2))
+    a = select_modes(synthetic_gcm_hindcast, synthetic_obs, years, **kw)
+    b = select_modes(synthetic_gcm_hindcast, synthetic_obs, years, **kw, overfit_check=False)
+    assert a[:4] == b[:4]
+
+
+def test_select_modes_tau_cpt_matches_tau_b_without_ties(synthetic_gcm_hindcast, synthetic_obs):
+    from africas2s.methods.cca import select_modes
+
+    years = [int(y) for y in synthetic_obs.year.values]
+    kw = dict(window=1, x_eof_range=(1, 3), y_eof_range=(1, 3), cca_range=(1, 2))
+    a = select_modes(synthetic_gcm_hindcast, synthetic_obs, years, **kw)
+    b = select_modes(synthetic_gcm_hindcast, synthetic_obs, years, **kw, tau="cpt")
+    assert a[:3] == b[:3]
+    assert a[3] == pytest.approx(b[3], abs=1e-12)
+    with pytest.raises(ValueError, match="tau must be"):
+        select_modes(synthetic_gcm_hindcast, synthetic_obs, years, **kw, tau="c")
+
+
+def test_seasonal_mme_forwards_overfit_and_tau_options(
+    monkeypatch, synthetic_gcm_hindcast, synthetic_obs
+):
+    import africas2s.methods.cca as C
+
+    seen = []
+    real = C.select_modes
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(C, "select_modes", spy)
+    base = dict(mode_selection="cpt", x_eof_range=(1, 2), y_eof_range=(1, 2), cca_range=(1, 1))
+    run = lambda extra: seasonal_mme(
+        _tracks(synthetic_gcm_hindcast), synthetic_obs, method="cca",
+        cv="loyo", cpt_args={**base, **extra}, verbose=False)
+    run({})
+    assert "overfit_check" not in seen[-1] and "tau" not in seen[-1]
+    run({"mode_selection_tau": "cpt", "mode_selection_overfit_check": False})
+    assert seen[-1]["tau"] == "cpt" and seen[-1]["overfit_check"] is False
