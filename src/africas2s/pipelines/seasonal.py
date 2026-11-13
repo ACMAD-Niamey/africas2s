@@ -631,6 +631,12 @@ def _per_model_cv(hcst, fcst, obs_sliced, *, method, cv_scheme, cpt_args,
             search_extra["method_kwargs"] = search_method_kwargs
         if cv_scheme != "loyo":
             search_extra["cv"] = cv_fn
+        # CPT's over-fitting exclusion is on by default; CPT's own Kendall tau
+        # (ties scored as in two_afc_cc) is opt-in for exact CPT mode parity.
+        if "mode_selection_overfit_check" in (cpt_args or {}):
+            search_extra["overfit_check"] = bool(cpt_args["mode_selection_overfit_check"])
+        if "mode_selection_tau" in (cpt_args or {}):
+            search_extra["tau"] = cpt_args["mode_selection_tau"]
         xe, ye, cc, goodness, _cv, _lev = select_modes(
             hcst_sliced,
             obs_sliced,

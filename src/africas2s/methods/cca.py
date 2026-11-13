@@ -287,6 +287,7 @@ class CCAMethod(MethodBase):
         ncc = min(cca_modes, nxe, nye, n_years - 1)
         self.ncc_ = ncc
         self.mu_ = mu[:ncc]             # canonical correlations
+        self.mu_full_ = mu              # all min(nxe, nye), before truncation to ncc
         self.r_ = U_ce[:, :ncc]         # Y CCA weights (nye, ncc)
         self.s_ = Vt_ce[:ncc, :]        # X CCA weights transposed (ncc, nxe)
 
@@ -514,8 +515,31 @@ def select_modes_north(gcm, obs, x_ceiling=10, y_ceiling=10, min_frac_of_mean=1.
 SEARCH_METHOD_KWARGS = ("standardize", "lat_weights", "sign_convention", "y_reconstruction")
 
 
+# CPT's tolerance for "a canonical correlation of 1" (data_numbers.F95: tol = Sqrt(eps)).
+_OVERFIT_TOL = float(np.sqrt(np.finfo(float).eps))
+
+
+def _kendall_tau_cpt(pred, obs):
+    """Kendall's tau as CPT computes it: ``2 * AFC - 1`` (scores.F95 ``k_tau``).
+
+    AFC is CPT's ``two_afc_cc``: over all pairs of years ``k < l``, a pair tied
+    in *both* series scores 1/2; any other pair scores 1 when the two differences
+    have the same sign and 0 otherwise, where Fortran's ``Sign(one, 0)`` is +1,
+    so a tie in one series only counts as "first value larger". Equal to
+    scipy's tau-b when there are no ties; differs when there are (e.g. zero
+    rainfall in several years of a dry cell).
+    """
+    k, l = np.triu_indices(len(obs), 1)
+    d_obs, d_pred = obs[k] - obs[l], pred[k] - pred[l]
+    s_obs = np.where(d_obs >= 0, 1.0, -1.0)
+    s_pred = np.where(d_pred >= 0, 1.0, -1.0)
+    score = np.where((d_obs == 0) & (d_pred == 0), 0.5, np.abs(s_obs + s_pred) / 2.0)
+    return 2.0 * float(score.mean()) - 1.0
+
+
 def select_modes(gcm, obs, years, window, x_eof_range=(1, 10), y_eof_range=(1, 10),
-                 cca_range=(1, 10), fallback_modes=None, *, method_kwargs=None, cv=None):
+                 cca_range=(1, 10), fallback_modes=None, *, method_kwargs=None, cv=None,
+                 overfit_check=True, tau="b"):
     """CPT-compatible mode auto-selection via cross-validated Kendall's tau.
 
     Matches CPT's cv_cca (cca.F95 L223-539) + goodness (scores.F95 L3589-3726):
@@ -541,10 +565,24 @@ def select_modes(gcm, obs, years, window, x_eof_range=(1, 10), y_eof_range=(1, 1
     in 2 of 4 and within 0.012 goodness of CPT's choice in the other two).
     Defaults (None) leave the previous behaviour unchanged.
 
+    ``overfit_check`` (default True) is CPT's over-fitting test (cca.F95,
+    "Check for over-fitting", active at CPT's default ``icco = 0``): if in any
+    CV fold a canonical correlation of an (x_eof, y_eof) pair is 1 (within
+    ``sqrt(eps)``), every combination with that pair is excluded from the
+    contest. This happens when the modes can fit the training years exactly
+    (roughly x_eof + y_eof >= training years), where the CV goodness is noise.
+    ``tau`` picks the goodness statistic: ``"b"`` (default) is scipy's
+    tie-corrected Kendall tau-b; ``"cpt"`` is CPT's own ``2 * AFC - 1``
+    (:func:`_kendall_tau_cpt`), which differs only when a cell has tied values.
+    With both, the search picked exactly CPT's modes in 4 of 4 test models
+    (pyCPT 2.10.4; Horn of Africa OND and a Sahara JJA box, ECMWF and UKMO).
+
     Returns (best_x_eof, best_y_eof, best_cca, goodness_value, cv_predictions, leverages)
     """
     from ..cv import loyo
 
+    if tau not in ("b", "cpt"):
+        raise ValueError(f"select_modes: tau must be 'b' or 'cpt', got {tau!r}")
     fold_fn = loyo if cv is None else cv
     trial_kwargs = {k: v for k, v in (method_kwargs or {}).items()
                     if k in SEARCH_METHOD_KWARGS}
@@ -572,6 +610,7 @@ def select_modes(gcm, obs, years, window, x_eof_range=(1, 10), y_eof_range=(1, 1
     valid_mask = ~np.isnan(obs_flat).all(axis=0)
     preds_all = np.full((n_combos, n_years, valid_mask.sum()), np.nan)
     levs_all = np.full((n_combos, n_years), np.nan)
+    overfit_pairs = set()   # (x_eof, y_eof) with a canonical correlation of 1 in some fold
 
     print(f"  Mode selection: {n_combos} combinations x {n_years} CV folds...")
     for fold_idx, (train_yrs, test_yr) in enumerate(fold_fn(years, window=window)):
@@ -587,6 +626,8 @@ def select_modes(gcm, obs, years, window, x_eof_range=(1, 10), y_eof_range=(1, 1
                 pred_flat = pred.values.reshape(-1)
                 preds_all[ci, yr_idx, :] = pred_flat[valid_mask]
                 levs_all[ci, yr_idx] = m.leverage(forecast)
+                if overfit_check and np.any(m.mu_full_ > 1.0 - _OVERFIT_TOL):
+                    overfit_pairs.add((xe, ye))
             except Exception:
                 # CCA can fail for degenerate mode counts; leave as NaN
                 pass
@@ -598,9 +639,14 @@ def select_modes(gcm, obs, years, window, x_eof_range=(1, 10), y_eof_range=(1, 1
     best_goodness = -np.inf
     best_idx = 0
 
+    if overfit_pairs:
+        n_dropped = sum(1 for c in combos if c[:2] in overfit_pairs)
+        print(f"  Mode selection: {n_dropped} of {n_combos} combinations excluded as "
+              f"over-fitted (a canonical correlation of 1 in a CV fold)")
+
     for ci in range(n_combos):
         preds = preds_all[ci]
-        if np.isnan(preds).all():
+        if np.isnan(preds).all() or combos[ci][:2] in overfit_pairs:
             continue
         tau_sum = 0.0
         n_valid_pts = 0
@@ -610,9 +656,12 @@ def select_modes(gcm, obs, years, window, x_eof_range=(1, 10), y_eof_range=(1, 1
             mask = np.isfinite(o) & np.isfinite(p)
             if mask.sum() < 4:
                 continue
-            tau, _ = kendalltau(p[mask], o[mask])
-            if np.isfinite(tau):
-                tau_sum += tau
+            if tau == "cpt":
+                t = _kendall_tau_cpt(p[mask], o[mask])
+            else:
+                t, _ = kendalltau(p[mask], o[mask])
+            if np.isfinite(t):
+                tau_sum += t
                 n_valid_pts += 1
         if n_valid_pts > 0:
             g = tau_sum / n_valid_pts
@@ -623,7 +672,9 @@ def select_modes(gcm, obs, years, window, x_eof_range=(1, 10), y_eof_range=(1, 1
     if not np.isfinite(best_goodness):
         if fallback_modes is None:
             raise ValueError(
-                "CCA mode selection found no finite Kendall goodness value; "
+                "CCA mode selection found no finite Kendall goodness value"
+                + (" (every combination was excluded as over-fitted)"
+                   if all(c[:2] in overfit_pairs for c in combos) else "") + "; "
                 "provide fallback_modes=(x_eof, y_eof, cca) to continue."
             )
         fallback_modes = tuple(fallback_modes)
